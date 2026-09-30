@@ -76,7 +76,7 @@
 - Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
 - Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
 - Table name and columns: diesel_exceptions (database/01-setup.sql): id, created_at, record_date, equipment_type, equipment_no, operator_id, shift, norm_litres, actual_litres, fuel_point, inspection_status, action_required, remarks. Litres above norm = actual - norm (worked out, not stored).
-- Pages: index.html = home; dashboard.html = dashboard (dashboard.js). Look for all pages in style.css. (The Add Record page was removed; database/01-setup.sql is kept for later.)
+- Pages: index.html = home; dashboard.html = dashboard (code in overview.js, data in overview-data.js, extra styles overview.css; shared look in style.css).
 
 ## Progress Log (newest entry at the bottom)
 - Phase 0 (starter): placeholder index.html, config.js without settings and
@@ -120,3 +120,4 @@
   the database (later phase). The older dashboard.html is unchanged (it still has fuel-point analysis).
   Tested in a local browser only. Next: decide whether Overview replaces Dashboard, and whether
   to connect it to Supabase for real alerts (needs new columns: mine, siding, vehicle type, km).
+- Old dashboard removed (Claude, on request): deleted the old dashboard.html and dashboard.js (forecast/fuel-point version is still in git history, last at commit e51f4a4^). The Overview page was renamed to dashboard.html, so links to dashboard.html now open it; overview.html no longer exists. Home page questions rewritten. sample-data.js is unused by pages (only the source of the SQL sample rows).

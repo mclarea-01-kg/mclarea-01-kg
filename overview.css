@@ -1,4 +1,4 @@
-/* overview.css - extra styles for overview.html only (base look comes from style.css) */
+/* overview.css - extra styles for dashboard.html only (base look comes from style.css) */
 :root { --deep: #0a3d8f; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 

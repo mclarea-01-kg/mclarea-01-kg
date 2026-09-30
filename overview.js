@@ -1,4 +1,4 @@
-/* overview.js - Fuel Overview Dashboard (overview.html).
+/* overview.js - Fuel Overview Dashboard (dashboard.html).
    Reads made-up data from overview-data.js. Every number is worked out here, none is typed in.
    "Live" readings are SIMULATED in the browser (real-time needs the database: a later phase). */
 (function () {
@@ -420,7 +420,7 @@
   function unacked() { return alerts.filter(function (a) { return !a.acked; }).length; }
   function updateBadge() {
     var n = unacked(), c = $("alert-count"); c.textContent = n; c.className = "count" + (n ? " on" : "");
-    document.title = (n ? "(" + n + ") " : "") + "Fuel Overview Dashboard";
+    document.title = (n ? "(" + n + ") " : "") + "Fuel Dashboard";
   }
   function renderAlerts() {
     var host = $("alert-list");

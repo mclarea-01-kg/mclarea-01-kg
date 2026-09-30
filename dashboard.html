@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Diesel Exception Dashboard</title>
+  <title>Fuel Dashboard</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5/index.css">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="overview.css">
 </head>
 <body>
   <header class="site-header">
@@ -14,181 +15,173 @@
         <div class="logos">
           <span class="logo logo-wide"><img src="images/logo.jpg" alt="Coal India Limited and Mahanadi Coalfields Limited logos" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo-text',textContent:'Coal India Ltd | Mahanadi Coalfields Ltd'}))"></span>
         </div>
-      <div class="brand">
-        <h1>Diesel Exception &amp; Fuel Consumption Monitoring Dashboard</h1>
-        <p>Open Cast Coal Mine &ndash; Weekly Fuel Exception Analysis</p>
-      </div>
+        <div class="brand">
+          <h1>Diesel Exception &amp; Fuel Consumption Monitoring Dashboard</h1>
+          <p>Monitor &nbsp;|&nbsp; Analyze &nbsp;|&nbsp; Control &nbsp;|&nbsp; Improve Efficiency</p>
+        </div>
       </div>
       <nav class="menu" aria-label="Main menu">
         <a href="index.html">Home</a>
         <a href="dashboard.html" aria-current="page">Dashboard</a>
-        <a href="overview.html">Overview</a>
       </nav>
     </div>
   </header>
-  <div class="sample-bar"><div class="wrap"><strong>Illustrative / Sample Data.</strong> All machines, operators and litres shown are made up for demonstration. <span id="asof"></span></div></div>
+  <div class="sample-bar"><div class="wrap"><strong>Illustrative / Sample Data.</strong> All mines, vehicles and litres are made up. <span id="asof"></span></div></div>
 
   <main class="wrap">
     <div id="error-area" role="alert"></div>
 
-    <!-- FILTER BAR -->
-    <section class="filters" aria-label="Filters">
-      <div class="filter-grid">
-        <div class="field"><label for="f-preset">Period</label>
+    <div class="toolbar">
+      <button class="btn filter-toggle" id="filter-toggle" type="button" aria-expanded="false" aria-controls="sidebar">Filters</button>
+      <span class="live-pill" id="live-pill" title="Simulated live feed. New made-up readings arrive while this page is open."><span class="dot"></span><span id="live-text">Live: on</span></span>
+      <span class="spacer"></span>
+      <button class="btn" id="btn-alerts" type="button">Alerts <span class="count" id="alert-count">0</span></button>
+      <button class="btn" id="btn-custom" type="button">Customize</button>
+    </div>
+
+    <div class="ov-layout">
+      <!-- FILTERS -->
+      <aside class="sidebar" id="sidebar" aria-label="Filters">
+        <h2 class="side-title">Filters</h2>
+        <div class="fld"><label for="f-preset">Date range</label>
           <select id="f-preset">
             <option value="7">Last 7 days</option>
             <option value="30" selected>Last 30 days</option>
             <option value="month">Current month</option>
-            <option value="custom">Custom date range</option>
+            <option value="90">Last 3 months</option>
+            <option value="all">All data (6 months)</option>
+            <option value="custom">Custom range</option>
           </select></div>
-        <div class="field"><label for="f-from">From</label><input type="date" id="f-from"></div>
-        <div class="field"><label for="f-to">To</label><input type="date" id="f-to"></div>
-        <div class="field"><label for="f-type">Equipment type</label><select id="f-type"></select></div>
-        <div class="field"><label for="f-eq">Equipment no.</label><select id="f-eq"></select></div>
-        <div class="field"><label for="f-op">Operator</label><select id="f-op"></select></div>
-        <div class="field"><label for="f-shift">Shift</label><select id="f-shift"></select></div>
-        <div class="field"><label for="f-fp">Fuel issue point</label><select id="f-fp"></select></div>
-        <div class="field"><label for="f-status">Inspection status</label><select id="f-status"></select></div>
-        <div class="field"><label for="f-priority">Priority</label><select id="f-priority"></select></div>
-        <div class="field"><button class="btn block" id="f-reset" type="button">Reset filters</button></div>
-      </div>
-      <p class="scope" id="scope"></p>
-    </section>
+        <div class="fld two"><div><label for="f-from">From</label><input type="date" id="f-from"></div><div><label for="f-to">To</label><input type="date" id="f-to"></div></div>
+        <div class="fld"><label for="f-mine">Mine</label><select id="f-mine"></select></div>
+        <div class="fld"><label for="f-siding">Siding</label><select id="f-siding"></select></div>
+        <div class="fld"><label for="f-vtype">Vehicle type</label><select id="f-vtype"></select></div>
+        <div class="fld"><label for="f-eq">Equipment</label><select id="f-eq"></select></div>
+        <div class="fld"><label for="f-shift">Shift</label><select id="f-shift"></select></div>
+        <p class="side-note">These two apply to the exception widgets only:</p>
+        <div class="fld"><label for="f-etype">Exception type</label><select id="f-etype"></select></div>
+        <div class="fld"><label for="f-status">Status</label><select id="f-status"></select></div>
+        <button class="btn primary block" id="f-reset" type="button">Reset filters</button>
+      </aside>
 
-    <!-- KPI ROW -->
-    <div class="section-label">Key numbers</div>
-    <section class="kpis" id="kpis" aria-label="Key performance indicators"></section>
+      <div class="content">
+        <!-- KPIs -->
+        <section class="ov-kpis" id="ov-kpis" aria-label="Key numbers"></section>
 
-    <!-- MAIN ANALYSIS -->
-    <div class="section-label">Main analysis</div>
-    <section class="grid g2">
-      <div class="card">
-        <h2>Litres Above Norm by Equipment Type</h2>
-        <p class="sub">Click a bar to see the records behind it.</p>
-        <p class="callout" id="type-callout"></p>
-        <div class="chart-box"><canvas id="ch-type" role="img" aria-label="Bar chart of litres above norm by equipment type"></canvas><div class="empty-msg" id="empty-type" hidden></div></div>
-      </div>
-      <div class="card">
-        <h2>Diesel Exceptions &ndash; Weekly Trend</h2>
-        <p class="sub" id="trend-sub">Number of exceptions and litres above norm over the selected period.</p>
-        <p class="callout" id="trend-callout"></p>
-        <div class="chart-box"><canvas id="ch-trend" role="img" aria-label="Line chart of number of exceptions and litres above norm over time"></canvas><div class="empty-msg" id="empty-trend" hidden></div></div>
-      </div>
-    </section>
-
-    <!-- OPERATIONAL ANALYSIS -->
-    <div class="section-label">Operational analysis</div>
-    <section class="grid g2">
-      <div class="card">
-        <h2>Repeat Exception Machines</h2>
-        <p class="sub">Machines with 2 or more exception records in the selected period.</p>
-        <div id="t-repeat"></div>
-      </div>
-      <div class="card">
-        <h2>Machines Requiring Inspection</h2>
-        <p class="sub">Ranked automatically with the points rule below.</p>
-        <details class="box" open>
-          <summary>How priority is decided (transparent rule)</summary>
-          <ul>
-            <li><strong>Litres above norm:</strong> +2 if total is 300 L or more, or any single exception is 150 L or more; +1 if total is 150 L or more.</li>
-            <li><strong>Repeat exceptions:</strong> +2 for 3 or more exceptions; +1 for 2 exceptions.</li>
-            <li><strong>Sudden increase:</strong> +1 if the latest exception is at least 1.3 times the average of the earlier ones.</li>
-            <li><strong>Continuous across shifts:</strong> +1 if two exceptions fall in back-to-back shifts (A&rarr;B, B&rarr;C, C&rarr;next day A).</li>
-            <li><strong>Open for several days:</strong> +1 if any exception is still Pending / Under Inspection for 3 or more days.</li>
-            <li><strong>Priority:</strong> Critical = 6&ndash;7 points, High = 4&ndash;5, Medium = 2&ndash;3, Low = 0&ndash;1.</li>
-          </ul>
-        </details>
-        <label class="check"><input type="checkbox" id="show-low"> Also show Low priority machines</label>
-        <div id="t-inspect"></div>
-      </div>
-    </section>
-
-    <!-- CONTROL ANALYSIS -->
-    <div class="section-label">Control analysis</div>
-    <section class="grid g2">
-      <div class="card">
-        <h2>Operator Retraining</h2>
-        <p class="sub">Rule: 3+ exceptions or 300+ L = Retrain; 2 exceptions or 150+ L = Counsel; otherwise Monitor. If the machine also shows exceptions under other operators, inspect the machine first.</p>
-        <div id="t-operator"></div>
-      </div>
-      <div class="card">
-        <h2>Excess Consumption by Fuel Issue Point</h2>
-        <p class="sub">Rule: 35% or more of all excess litres = Tighten control; 25% or more = Watch.</p>
-        <div class="chart-box short"><canvas id="ch-fp" role="img" aria-label="Bar chart of excess litres by fuel issue point"></canvas><div class="empty-msg" id="empty-fp" hidden></div></div>
-        <div id="t-fp" style="margin-top:12px"></div>
-      </div>
-    </section>
-
-    <div class="section-label">Fuel controls</div>
-    <section class="card">
-      <h2>Fuel Control Actions</h2>
-      <p class="sub">Standing control checks. "Act now" appears when the current data gives a reason.</p>
-      <div class="ctrl-grid" id="controls"></div>
-    </section>
-
-    <!-- MANAGEMENT ACTION -->
-    <div class="section-label">Management action</div>
-    <section class="grid g-side">
-      <div class="mgmt" aria-labelledby="mgmt-h">
-        <h2 id="mgmt-h">MANAGEMENT ACTION REQUIRED</h2>
-        <p class="sub">Written automatically from the records in the current view.</p>
-        <ol class="act-list" id="mgmt-list"></ol>
-        <p class="disclaimer"><strong>Please note:</strong> these are decision-support suggestions based on recorded exceptions. They are not accusations of fuel misuse.</p>
-      </div>
-      <div class="card">
-        <h2>Action Panel</h2>
-        <p class="sub">For Fuel and E&amp;M Managers.</p>
-        <div class="panel-fields">
-          <div class="field"><label for="ap-eq">Machine</label><select id="ap-eq"></select></div>
-          <div class="field"><label for="ap-date">Inspection date</label><input type="date" id="ap-date"></div>
-          <div class="field"><label for="ap-op">Operator</label><select id="ap-op"></select></div>
+        <!-- ROW 2 -->
+        <div class="row r-trend">
+          <section class="pcard" data-widget="trend">
+            <h2 class="ptitle">Diesel Consumption Trend</h2>
+            <div class="pbody"><div class="cbox"><canvas id="ch-trend" role="img" aria-label="Bars of diesel consumed and a line of fuel efficiency over time"></canvas><div class="empty-msg" id="empty-trend" hidden>No records match the selected filters.</div></div></div>
+          </section>
+          <section class="pcard" data-widget="type">
+            <h2 class="ptitle">Exceptions by Type</h2>
+            <div class="pbody type-body">
+              <div class="cbox donut"><canvas id="ch-type" role="img" aria-label="Doughnut chart of exceptions by type"></canvas><div class="empty-msg" id="empty-type" hidden>No exceptions.</div></div>
+              <ul class="legend" id="type-legend"></ul>
+            </div>
+          </section>
+          <section class="pcard" data-widget="mine">
+            <h2 class="ptitle">Exceptions by Mine</h2>
+            <div class="pbody"><div class="cbox"><canvas id="ch-mine" role="img" aria-label="Bar chart of exceptions by mine"></canvas><div class="empty-msg" id="empty-mine" hidden>No exceptions.</div></div></div>
+          </section>
         </div>
-        <div class="panel-btns">
-          <button class="btn primary" id="ap-inspect" type="button">Schedule Mechanical Inspection</button>
-          <button class="btn amber" id="ap-retrain" type="button">Flag Operator for Retraining</button>
-        </div>
-        <p class="note">Inspection: check engine and look for leaks. Retraining: fix excessive idling.</p>
-        <div class="lock-row">
-          <div><strong>Lock Fuel Dispenser</strong><span>Block refuelling for unapproved repeat exceptions</span></div>
-          <label class="switch"><input type="checkbox" id="ap-lock" role="switch" aria-label="Lock fuel dispenser for the selected machine"><span class="track"></span></label>
-        </div>
-        <div id="ap-msg" role="status"></div>
-        <p class="note"><strong>Demo only:</strong> requests are saved in this browser. No real dispenser or maintenance system is changed.</p>
-        <h3 style="font-size:14px;margin-top:12px">Recent requests</h3>
-        <ul class="log" id="ap-log"></ul>
-      </div>
-    </section>
 
-    <!-- DETAIL TABLE -->
-    <div class="section-label">Detail records</div>
-    <section class="card">
-      <h2>Complete Exception Records</h2>
-      <p class="sub">Uses all filters above. Click a heading to sort. Click an equipment number, operator or fuel point to drill down.</p>
-      <div class="tools">
-        <div class="field"><label for="d-search">Search</label><input type="search" id="d-search" placeholder="Equipment, operator, fuel point, remarks..."></div>
-        <label class="check"><input type="checkbox" id="d-normal"> Include within-norm records</label>
-        <button class="btn" id="d-csv" type="button">Download CSV</button>
+        <!-- ROW 3 -->
+        <div class="row r-three">
+          <section class="pcard" data-widget="eff">
+            <h2 class="ptitle">Fuel Efficiency by Vehicle Type (km/l)</h2>
+            <div class="pbody"><div class="cbox"><canvas id="ch-eff" role="img" aria-label="Bar chart of fuel efficiency by vehicle type"></canvas><div class="empty-msg" id="empty-eff" hidden>No records.</div></div></div>
+          </section>
+          <section class="pcard" data-widget="equip">
+            <h2 class="ptitle">Fuel Consumption by Equipment (L)</h2>
+            <div class="pbody"><div class="cbox"><canvas id="ch-equip" role="img" aria-label="Bar chart of diesel consumed by vehicle type"></canvas><div class="empty-msg" id="empty-equip" hidden>No records.</div></div></div>
+          </section>
+          <section class="pcard" data-widget="locations">
+            <h2 class="ptitle">Top 5 Fuel Exception Locations</h2>
+            <div class="pbody" id="top-locations"></div>
+          </section>
+        </div>
+
+        <!-- ROW 4 -->
+        <div class="row r-details">
+          <section class="pcard" data-widget="details">
+            <h2 class="ptitle">Exception Details</h2>
+            <div class="pbody">
+              <div class="tools"><div class="field"><label for="d-search" class="sr">Search</label><input type="search" id="d-search" placeholder="Search vehicle, mine, type..."></div><button class="btn" id="d-csv" type="button">Download CSV</button></div>
+              <div id="t-details"></div>
+              <p class="note">Click a row to see the full record and update its status.</p>
+            </div>
+          </section>
+          <section class="pcard tint-warn" data-widget="insights">
+            <h2 class="ptitle amber">Key Insights</h2>
+            <div class="pbody"><ul class="insights" id="insights"></ul></div>
+          </section>
+          <section class="pcard tint-ok" data-widget="actions">
+            <h2 class="ptitle green">Recommended Actions</h2>
+            <div class="pbody" id="actions"></div>
+          </section>
+        </div>
+        <p class="note">Suggestions are decision support based on recorded exceptions. They are not accusations of fuel misuse.</p>
       </div>
-      <div id="t-detail"></div>
-    </section>
+    </div>
   </main>
+  <div class="wrap site-footer" id="footer-note">Illustrative / Sample Data &ndash; made up for training. Not real MCL figures.</div>
 
-  <div class="wrap site-footer">Illustrative / Sample Data &ndash; made up for training. Not real MCL figures.</div>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <div class="backdrop" id="backdrop" hidden></div>
 
-  <!-- DRILL-DOWN -->
-  <div class="overlay" id="drill" role="dialog" aria-modal="true" aria-labelledby="drill-title">
-    <div class="dialog">
-      <div class="dialog-head">
-        <div><h2 id="drill-title"></h2><p class="sub" id="drill-sub" style="margin:4px 0 0"></p></div>
-        <button class="btn" id="drill-close" type="button">Close</button>
-      </div>
-      <div class="sum-row" id="drill-sum"></div>
-      <div id="t-drill"></div>
+  <!-- ALERTS DRAWER -->
+  <aside class="drawer" id="drawer-alerts" role="dialog" aria-modal="true" aria-labelledby="da-title" hidden>
+    <div class="drawer-head"><h2 id="da-title">Live Alerts</h2><button class="btn" type="button" data-close>Close</button></div>
+    <p class="note">Simulated live feed: made-up readings arrive while this page is open. Alerts use your thresholds from Customize.</p>
+    <div class="drawer-tools">
+      <button class="btn" id="al-ack" type="button">Acknowledge all</button>
+      <button class="btn" id="al-clear" type="button">Clear list</button>
+      <button class="btn" id="al-test" type="button">Send test alert</button>
+    </div>
+    <div id="alert-list"></div>
+  </aside>
+
+  <!-- CUSTOMIZE DRAWER -->
+  <aside class="drawer" id="drawer-custom" role="dialog" aria-modal="true" aria-labelledby="dc-title" hidden>
+    <div class="drawer-head"><h2 id="dc-title">Customize</h2><button class="btn" type="button" data-close>Close</button></div>
+    <p class="note">Changes apply straight away and are saved in this browser only.</p>
+    <h3>Alert rules</h3>
+    <div class="fld"><label for="c-high">High consumption: more than (% above norm)</label><input type="number" id="c-high" min="1" max="100" step="1"></div>
+    <div class="fld"><label for="c-low">Low consumption: more than (% below norm)</label><input type="number" id="c-low" min="1" max="100" step="1"></div>
+    <div class="fld"><label for="c-crit">Critical alert: at or above (% above norm)</label><input type="number" id="c-crit" min="1" max="200" step="1"></div>
+    <div class="fld"><label for="c-price">Diesel price (&#8377; per litre)</label><input type="number" id="c-price" min="1" max="500" step="0.5"></div>
+    <h3>Live feed</h3>
+    <label class="check"><input type="checkbox" id="c-live"> Live feed on</label>
+    <div class="fld"><label for="c-interval">New reading every</label>
+      <select id="c-interval"><option value="10">10 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option><option value="300">5 minutes</option></select></div>
+    <label class="check"><input type="checkbox" id="c-toasts"> Pop-up alerts</label>
+    <label class="check"><input type="checkbox" id="c-sound"> Beep on critical alerts</label>
+    <h3>Charts</h3>
+    <div class="fld"><label for="c-group">Trend grouped by</label>
+      <select id="c-group"><option value="auto">Automatic</option><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></select></div>
+    <div class="fld"><label for="c-rows">Table rows per page</label>
+      <select id="c-rows"><option>8</option><option>15</option><option>25</option></select></div>
+    <h3>Show or hide sections</h3>
+    <div id="c-widgets" class="widget-checks"></div>
+    <h3>Saved views</h3>
+    <p class="note">Save the current filters under a name and bring them back later.</p>
+    <div class="fld two"><div><label for="v-name" class="sr">View name</label><input type="text" id="v-name" maxlength="30" placeholder="e.g. Mine A dumpers"></div><div><button class="btn primary block" id="v-save" type="button">Save view</button></div></div>
+    <ul class="views" id="v-list"></ul>
+    <button class="btn block" id="c-reset" type="button" style="margin-top:14px">Reset all settings</button>
+  </aside>
+
+  <!-- RECORD DIALOG -->
+  <div class="overlay" id="rec-modal" role="dialog" aria-modal="true" aria-labelledby="rec-title">
+    <div class="dialog" style="max-width:640px">
+      <div class="dialog-head"><h2 id="rec-title">Record</h2><button class="btn" id="rec-close" type="button">Close</button></div>
+      <div id="rec-body"></div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="sample-data.js"></script>
-  <script src="dashboard.js"></script>
+  <script src="overview-data.js"></script>
+  <script src="overview.js"></script>
 </body>
 </html>
