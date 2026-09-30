@@ -216,6 +216,7 @@ details.box li { margin: 3px 0; }
   .tbl td:last-child { border-bottom: 0; }
   .tbl td::before { content: attr(data-label); font-weight: 700; color: var(--muted); text-align: left; flex: none; max-width: 42%; }
   .tbl .num { text-align: right; }
+  .tbl .cell { min-width: 0; text-align: right; }
   .tbl-sortbar { display: flex; }
   .lock-row { flex-wrap: wrap; }
 }

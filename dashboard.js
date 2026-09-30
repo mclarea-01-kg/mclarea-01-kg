@@ -269,7 +269,7 @@
     h += "</tr></thead><tbody>";
     rows.forEach(function (r) {
       h += "<tr>";
-      cfg.cols.forEach(function (c) { h += '<td class="' + (c.num ? "num" : "") + '" data-label="' + esc(c.label) + '">' + c.html(r) + "</td>"; });
+      cfg.cols.forEach(function (c) { h += '<td class="' + (c.num ? "num" : "") + '" data-label="' + esc(c.label) + '"><span class="cell">' + c.html(r) + "</span></td>"; });
       h += "</tr>";
     });
     h += "</tbody></table></div>";
