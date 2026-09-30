@@ -108,3 +108,4 @@
   (from jsDelivr, falls back to the system font). Header now has two logo slots. NEW folder images/:
   put mcl-logo.png (Mahanadi Coalfields) and coal-india-logo.png (Coal India) there; until then the
   header shows the company names as text. Official logo files must be supplied by the team.
+- Logo (Claude, on request): the team's combined Coal India + MCL picture is saved as images/logo.jpg and shown in the header of index.html and dashboard.html (text fallback if missing). Replaces the two separate logo slots.

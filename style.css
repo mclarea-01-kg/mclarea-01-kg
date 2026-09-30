@@ -250,3 +250,6 @@ details.box li { margin: 3px 0; }
 .logo img { display: block; height: 42px; width: auto; max-width: 150px; }
 .logo .logo-text { color: #0b1220; font-weight: 800; font-size: 13px; line-height: 1.15; text-align: center; letter-spacing: 0; }
 @media (max-width: 720px) { .logo { min-height: 46px; } .logo img { height: 36px; max-width: 120px; } }
+.logo-wide { padding: 2px 8px; }
+.logo-wide img { height: 76px; max-width: 280px; object-fit: contain; }
+@media (max-width: 720px) { .logo-wide img { height: 62px; max-width: 220px; } }
