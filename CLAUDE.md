@@ -76,7 +76,7 @@
 - Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
 - Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
 - Table name and columns: diesel_exceptions (database/01-setup.sql): id, created_at, record_date, equipment_type, equipment_no, operator_id, shift, norm_litres, actual_litres, fuel_point, inspection_status, action_required, remarks. Litres above norm = actual - norm (worked out, not stored).
-- Pages: index.html = home; entry.html = Add Record form (entry.js); dashboard.html = dashboard (dashboard.js). Look for all pages in style.css.
+- Pages: index.html = home; dashboard.html = dashboard (dashboard.js). Look for all pages in style.css. (The Add Record page was removed; database/01-setup.sql is kept for later.)
 
 ## Progress Log (newest entry at the bottom)
 - Phase 0 (starter): placeholder index.html, config.js without settings and
@@ -102,3 +102,4 @@
   state: dashboard.html uses sample-data.js; Add Record page and database/01-setup.sql are kept.
   The undone work is still in git history (commits 8d79ffc, 77cbf2c, e570dae, 9b674a3) and can be
   brought back by reverting this rollback commit.
+- Removed Add Record (Claude, on request): deleted entry.html and entry.js and the menu/home links to them. Dashboard unchanged. database/01-setup.sql kept. Next: decide whether to bring back data entry.
