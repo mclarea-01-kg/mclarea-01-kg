@@ -75,8 +75,8 @@
 - Tool name: Diesel Exception & Fuel Consumption Monitoring Dashboard
 - Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
 - Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
-- Table name and columns: fuel_readings (database/02-fuel-readings.sql): id, created_at, reading_date, mine, siding, vehicle_type, vehicle_no, shift, expected_litres, actual_litres, km, exception_flag, status. Litres above/below expected = actual - expected (worked out, not stored). The older table diesel_exceptions (01-setup.sql) is NOT used any more and is left untouched.
-- Pages: index.html = home; dashboard.html = dashboard (code in overview.js, data in overview-data.js, extra styles overview.css; shared look in style.css).
+- Table name and columns: fuel_readings (database/02, 03, 04 files): id, created_at, reading_date, mine, vehicle_type, vehicle_no, shift, expected_litres (= the vehicle's FIXED litres per shift), km (= FIXED distance per shift), exception_type ('' = normal, or High Consumption / Low Consumption / Refueling Irregularity / Mileage Mismatch / Other), status, entered_by, updated_by, updated_at. OLD columns siding, actual_litres, exception_flag still exist but are optional and unused. The older table diesel_exceptions (01-setup.sql) is NOT used any more.
+- Pages: index.html = home; dashboard.html = dashboard (code in overview.js; fixed litres/km per vehicle in fixed-values.js; built-in sample data in overview-data.js; user.js = who-are-you picker; styles in style.css + overview.css).
 
 ## Progress Log (newest entry at the bottom)
 - Phase 0 (starter): placeholder index.html, config.js without settings and
@@ -143,4 +143,19 @@
   works and a small yellow note says names are not being saved. Alerts show "Entered by ..." and "acknowledged by ...";
   the record window shows who last changed the status. Tested with a stand-in database and a local throwaway
   Postgres (03 file), not on our Supabase. Next: Data Keeper runs 03 file; decide if roles should also filter alerts.
+- Phase 8 (Claude, on request): (1) Title everywhere is now "Fuel Consumption Monitoring". (2) Siding removed completely
+  (filter, form, charts, table, database no longer needs it). "Top 5 Exception Locations" became "Top 5 Exception
+  Vehicles". (3) Actual litres removed completely from the screens and the logic. Every vehicle has FIXED litres and
+  distance per shift (new file fixed-values.js: to add or change a vehicle, edit that file). A reading records only
+  date, shift, vehicle and EXCEPTION TYPE (chosen from a list); the Add Reading form shows the vehicle's fixed values
+  read-only. Consumption, cost and km/l now come from the fixed values. The old "% above / below norm" alert rules
+  were replaced in Customize by "raise an alert for these exception types" and "show these as Critical". Details
+  table columns now: Date, Mine, Vehicle, Equipment, Shift, Fuel (L), Exception Type, Status. NEW
+  database/04-fixed-readings.sql (adds exception_type, fills it once from the old numbers for existing rows, makes
+  siding and actual_litres optional; drops and deletes nothing; safe to run twice; checked on a throwaway local
+  Postgres, NOT on our Supabase). Before 04 is run the dashboard still opens (it works out the type from the old
+  numbers) but new readings cannot be saved and a yellow note says so. Pop-up alerts are hidden while a side panel is
+  open (they covered the Close button). Built-in demo data (overview-data.js) still holds the old numbers only as
+  the source for the one-time type; the screens ignore them.
+  Next: Data Keeper runs 04 file; test adding readings; decide if vehicle fixed values should move into the database.
 

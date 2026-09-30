@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Fuel Dashboard</title>
+  <title>Fuel Consumption Monitoring</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5/index.css">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="overview.css">
@@ -16,7 +16,7 @@
           <span class="logo logo-wide"><img src="images/logo.jpg" alt="Coal India Limited and Mahanadi Coalfields Limited logos" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo-text',textContent:'Coal India Ltd | Mahanadi Coalfields Ltd'}))"></span>
         </div>
         <div class="brand">
-          <h1>Diesel Exception &amp; Fuel Consumption Monitoring Dashboard</h1>
+          <h1>Fuel Consumption Monitoring</h1>
           <p>Monitor &nbsp;|&nbsp; Analyze &nbsp;|&nbsp; Control &nbsp;|&nbsp; Improve Efficiency</p>
         </div>
       </div>
@@ -56,7 +56,6 @@
           </select></div>
         <div class="fld two"><div><label for="f-from">From</label><input type="date" id="f-from"></div><div><label for="f-to">To</label><input type="date" id="f-to"></div></div>
         <div class="fld"><label for="f-mine">Mine</label><select id="f-mine"></select></div>
-        <div class="fld"><label for="f-siding">Siding</label><select id="f-siding"></select></div>
         <div class="fld"><label for="f-vtype">Vehicle type</label><select id="f-vtype"></select></div>
         <div class="fld"><label for="f-eq">Equipment</label><select id="f-eq"></select></div>
         <div class="fld"><label for="f-shift">Shift</label><select id="f-shift"></select></div>
@@ -100,7 +99,7 @@
             <div class="pbody"><div class="cbox"><canvas id="ch-equip" role="img" aria-label="Bar chart of diesel consumed by vehicle type"></canvas><div class="empty-msg" id="empty-equip" hidden>No records.</div></div></div>
           </section>
           <section class="pcard" data-widget="locations">
-            <h2 class="ptitle">Top 5 Fuel Exception Locations</h2>
+            <h2 class="ptitle">Top 5 Exception Vehicles</h2>
             <div class="pbody" id="top-locations"></div>
           </section>
         </div>
@@ -152,10 +151,11 @@
     <p class="note">Changes apply straight away and are saved in this browser only.</p>
     <h3>Alert rules</h3>
     <p class="perm-note" id="rules-note" hidden></p>
-    <div class="fld"><label for="c-high">High consumption: more than (% above norm)</label><input type="number" id="c-high" min="1" max="100" step="1"></div>
-    <div class="fld"><label for="c-low">Low consumption: more than (% below norm)</label><input type="number" id="c-low" min="1" max="100" step="1"></div>
-    <div class="fld"><label for="c-crit">Critical alert: at or above (% above norm)</label><input type="number" id="c-crit" min="1" max="200" step="1"></div>
-    <div class="fld"><label for="c-price">Diesel price (&#8377; per litre)</label><input type="number" id="c-price" min="1" max="500" step="0.5"></div>
+    <p class="note" style="margin:0 0 6px">Raise an alert for these exception types:</p>
+    <div id="c-alertTypes" class="widget-checks"></div>
+    <p class="note" style="margin:10px 0 6px">Show these as Critical (red):</p>
+    <div id="c-critTypes" class="widget-checks"></div>
+    <div class="fld" style="margin-top:12px"><label for="c-price">Diesel price (&#8377; per litre)</label><input type="number" id="c-price" min="1" max="500" step="0.5"></div>
     <h3>Live feed</h3>
     <label class="check"><input type="checkbox" id="c-live"> Live feed on</label>
     <div class="fld"><label for="c-interval">Check for new readings every</label>
@@ -180,15 +180,14 @@
   <aside class="drawer" id="drawer-add" role="dialog" aria-modal="true" aria-labelledby="dad-title" hidden>
     <div class="drawer-head"><h2 id="dad-title">Add a fuel reading</h2><button class="btn" type="button" data-close>Close</button></div>
     <p class="perm-note" id="add-perm" hidden></p>
-    <p class="note" id="add-note">One reading = one vehicle, one shift. Use made-up values only.</p>
+    <p class="note" id="add-note">Litres and distance are fixed for each vehicle. Choose the vehicle, date, shift and exception type.</p>
     <form id="add-form" novalidate>
       <div class="fld two"><div><label for="a-date">Date</label><input type="date" id="a-date" required></div><div><label for="a-shift">Shift</label><select id="a-shift"><option>A Shift</option><option>B Shift</option><option>C Shift</option></select></div></div>
-      <div class="fld"><label for="a-no">Vehicle no.</label><input type="text" id="a-no" list="dl-no" maxlength="20" autocomplete="off" placeholder="e.g. HD-05" required><datalist id="dl-no"></datalist></div>
-      <div class="fld"><label for="a-type">Vehicle type</label><select id="a-type"></select></div>
-      <div class="fld two"><div><label for="a-mine">Mine</label><input type="text" id="a-mine" list="dl-mine" maxlength="30" autocomplete="off" placeholder="e.g. Mine A" required><datalist id="dl-mine"></datalist></div><div><label for="a-siding">Siding</label><input type="text" id="a-siding" list="dl-siding" maxlength="30" autocomplete="off" placeholder="e.g. Siding 1" required><datalist id="dl-siding"></datalist></div></div>
-      <div class="fld two"><div><label for="a-exp">Expected (L)</label><input type="number" id="a-exp" min="1" step="any" inputmode="decimal" required></div><div><label for="a-act">Actual (L)</label><input type="number" id="a-act" min="0" step="any" inputmode="decimal" required></div></div>
-      <div class="fld two"><div><label for="a-km">Distance (km)</label><input type="number" id="a-km" min="0" step="any" inputmode="decimal"></div><div><label for="a-flag">Flag</label><select id="a-flag"><option value="">None</option><option>Refueling Irregularity</option><option>Mileage Mismatch</option><option>Other</option></select></div></div>
-      <p class="preview" id="a-preview" aria-live="polite">Enter expected and actual litres to see the result.</p>
+      <div class="fld"><label for="a-no">Vehicle</label><select id="a-no" required></select></div>
+      <dl class="fixed-box" id="a-fixed" aria-label="Fixed values for the chosen vehicle"></dl>
+      <div class="fld"><label for="a-type">Exception type</label>
+        <select id="a-type"><option value="">None - normal reading</option><option>High Consumption</option><option>Low Consumption</option><option>Refueling Irregularity</option><option>Mileage Mismatch</option><option>Other</option></select></div>
+      <p class="preview" id="a-preview" aria-live="polite">Choose a vehicle.</p>
       <div id="a-msg" role="status"></div>
       <button class="btn primary big" type="submit" id="a-save">Save reading</button>
     </form>
@@ -206,6 +205,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <!-- overview-data.js is only the built-in sample data, used if the database cannot be read -->
+  <script src="fixed-values.js"></script>
   <script src="overview-data.js"></script>
   <script src="user.js"></script>
   <script src="overview.js"></script>
