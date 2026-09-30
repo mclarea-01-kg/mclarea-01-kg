@@ -12,7 +12,7 @@
   var EXC_COLORS = { "High Consumption": "#c62828", "Low Consumption": "#0b57c7", "Refueling Irregularity": "#c98a00", "Mileage Mismatch": "#0a1f44", "Other": "#8a96a8" };
   var STATUSES = ["Open", "Under Review", "In Progress", "Closed"];
   var WIDGETS = [["trend", "Diesel consumption trend"], ["type", "Exceptions by type"], ["mine", "Exceptions by mine"], ["eff", "Fuel efficiency by vehicle type"], ["equip", "Fuel consumption by equipment"], ["locations", "Top 5 exception vehicles"], ["details", "Exception details table"], ["insights", "Key insights"], ["actions", "Recommended actions"]];
-  var DEFAULTS = { alertTypes: EXC_TYPES.slice(), critTypes: ["High Consumption"], price: 92, group: "auto", live: true, interval: 30, toasts: true, sound: false, rows: 8, widgets: {} };
+  var DEFAULTS = { suggestHigh: 10, suggestLow: 10, alertTypes: EXC_TYPES.slice(), critTypes: ["High Consumption"], price: 92, group: "auto", live: true, interval: 30, toasts: true, sound: false, rows: 8, widgets: {} };
   WIDGETS.forEach(function (w) { DEFAULTS.widgets[w[0]] = true; });
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -660,10 +660,30 @@
   function showFixed() {
     var m = machineOf($("a-no").value), box = $("a-fixed");
     if (!m) { box.innerHTML = ""; return; }
-    if (document.activeElement !== $("a-cons") && !$("a-cons").dataset.touched) $("a-cons").value = m.litres;
+    if (!$("a-cons").dataset.touched) $("a-cons").value = m.litres;
     box.innerHTML = [["Type", m.vtype], ["Mine", m.mine], ["Fixed fuel", num(m.litres) + " L / shift"], ["Fixed distance", num(m.km) + " km / shift"]].map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("");
   }
+  // Suggest High / Low Consumption from the diesel typed, compared with the vehicle's fixed litres.
+  // Other types (refuelling, mileage, other) stay manual. A manual choice is never overwritten.
+  function suggestType() {
+    var m = machineOf($("a-no").value), txt = $("a-cons").value.trim();
+    if (!m || txt === "" || $("a-cons").disabled) return null;
+    var c = parseFloat(txt); if (!(c > 0)) return null;
+    var dev = (c - m.litres) / m.litres * 100;
+    return { type: dev > S.suggestHigh ? "High Consumption" : dev < -S.suggestLow ? "Low Consumption" : "", dev: dev, fixed: m.litres };
+  }
+  function applySuggestion() {
+    var s = suggestType(), note = $("a-sugg"), sel = $("a-type");
+    if (!s) { note.textContent = ""; return; }
+    var pct = (s.dev > 0 ? "+" : "") + num1(s.dev) + "% vs the fixed " + num(s.fixed) + " L";
+    if (!sel.dataset.manual) {
+      sel.value = s.type;
+      note.textContent = s.type ? "Suggested from the diesel consumed: " + s.type + " (" + pct + "). You can change it." : "Diesel consumed is within " + S.suggestHigh + "% above / " + S.suggestLow + "% below the fixed fuel (" + pct + "): no exception suggested.";
+    } else note.textContent = "You chose this type yourself. Diesel consumed is " + pct + ".";
+  }
   function previewAdd() {
+    showFixed();       // first: fixed values and the prefilled litres of the chosen vehicle
+    applySuggestion(); // then: suggestion from the litres now in the box
     var t = $("a-type").value, p = $("a-preview"); showFixed();
     if (!machineOf($("a-no").value)) { p.className = "preview"; p.textContent = "Choose a vehicle."; return; }
     if (!t) { p.className = "preview good"; p.textContent = "\u2714 Normal reading. No alert."; return; }
@@ -674,15 +694,16 @@
     if (!USER.can("add")) return;
     var h = new Date().getHours();
     $("a-date").value = todayLocal(); $("a-shift").value = SHIFTS[h >= 6 && h < 14 ? 0 : h >= 14 && h < 22 ? 1 : 2];
-    $("a-cons").dataset.touched = ""; $("a-msg").innerHTML = ""; previewAdd();
+    $("a-cons").dataset.touched = ""; $("a-type").dataset.manual = ""; $("a-type").value = ""; $("a-msg").innerHTML = ""; previewAdd();
     $("a-cons").disabled = MODE === "db" && hasConsumed === false;
     $("a-cons-note").textContent = $("a-cons").disabled ? "Diesel consumed cannot be saved yet. Ask the Data Keeper to run database/05-consumed-litres.sql." : "Prefilled with the vehicle's fixed fuel. Change it if this shift used a different amount.";
     $("add-note").textContent = MODE === "db" ? "Choose the vehicle, date, shift and exception type, and enter the diesel consumed (it starts at the vehicle's fixed fuel). Distance is fixed for each vehicle. It is saved in the database and every open dashboard gets the alert. Use made-up values only." : "Demo mode: the database is not connected, so this reading is kept in this browser only.";
     openDrawer("drawer-add");
   }
   function bindAdd() {
-    $("a-no").addEventListener("change", function () { $("a-cons").dataset.touched = ""; previewAdd(); }); $("a-type").addEventListener("change", previewAdd);
-    $("a-cons").addEventListener("input", function () { this.dataset.touched = "1"; });
+    $("a-no").addEventListener("change", function () { $("a-cons").dataset.touched = ""; $("a-type").dataset.manual = ""; previewAdd(); });
+    $("a-type").addEventListener("change", function () { this.dataset.manual = "1"; previewAdd(); });
+    $("a-cons").addEventListener("input", function () { this.dataset.touched = "1"; previewAdd(); });
     $("add-form").addEventListener("submit", function (ev) {
       ev.preventDefault(); $("error-area").innerHTML = ""; $("a-msg").innerHTML = "";
       if (!USER.can("add")) { $("a-msg").innerHTML = '<p class="msg bad">Your role cannot add readings.</p>'; return; }
@@ -696,7 +717,7 @@
         btn.disabled = false; btn.textContent = "Save reading";
         if (err) { $("a-msg").innerHTML = '<p class="msg bad">The reading was NOT saved. See the red message at the top of the page.</p>'; return; }
         $("a-msg").innerHTML = '<p class="msg">Saved: ' + esc(v.no) + ", " + esc(v.shift) + ", " + esc(fmtDate(v.date)) + (v.cons !== null ? ", " + esc(num1(v.cons)) + " L" : "") + (v.type ? ", " + esc(v.type) : ", normal") + ".</p>";
-        $("a-type").value = ""; $("a-cons").dataset.touched = ""; previewAdd();
+        $("a-type").value = ""; $("a-type").dataset.manual = ""; $("a-cons").dataset.touched = ""; previewAdd();
       });
     });
   }
@@ -704,7 +725,7 @@
   /* ================= customize panel ================= */
   function persist() { save("mclOverviewSettings", S); }
   function initCustomize() {
-    $("c-price").value = S.price;
+    $("c-price").value = S.price; $("c-sugHigh").value = S.suggestHigh; $("c-sugLow").value = S.suggestLow;
     $("c-alertTypes").innerHTML = EXC_TYPES.map(function (t) { return '<label class="check"><input type="checkbox" data-at="' + esc(t) + '"' + (S.alertTypes.indexOf(t) !== -1 ? " checked" : "") + "> " + esc(t) + "</label>"; }).join("");
     $("c-critTypes").innerHTML = EXC_TYPES.map(function (t) { return '<label class="check"><input type="checkbox" data-ct="' + esc(t) + '"' + (S.critTypes.indexOf(t) !== -1 ? " checked" : "") + "> " + esc(t) + "</label>"; }).join("");
     $("c-live").checked = S.live; $("c-interval").value = String(S.interval); $("c-toasts").checked = S.toasts; $("c-sound").checked = S.sound;
@@ -717,7 +738,7 @@
   }
   function bindCustomize() {
     function numField(id, key) { $(id).addEventListener("input", function () { if (!USER.can("rules")) return; var v = parseFloat(this.value); if (!(v > 0)) return; S[key] = v; persist(); renderAll(); }); }
-    numField("c-price", "price");
+    numField("c-price", "price"); numField("c-sugHigh", "suggestHigh"); numField("c-sugLow", "suggestLow");
     function listField(boxId, attr, key) {
       $(boxId).addEventListener("change", function (e) {
         var t = e.target.getAttribute(attr); if (t === null || !USER.can("rules")) return;
@@ -814,7 +835,7 @@
     $("btn-add").disabled = !add; $("btn-add").title = add ? "" : "Your role (" + role + ") cannot add readings. Switch role with your name at the top right.";
     var ap = $("add-perm"); ap.hidden = add; ap.textContent = "Your role (" + role + ") cannot add readings.";
     $("al-test").disabled = !test; var tn = $("test-note"); tn.hidden = test; tn.textContent = "Test readings can be sent by the Fuel Manager only. Your role: " + role + ".";
-    $("c-price").disabled = !rules;
+    $("c-price").disabled = !rules; $("c-sugHigh").disabled = !rules; $("c-sugLow").disabled = !rules;
     document.querySelectorAll("#c-alertTypes input, #c-critTypes input").forEach(function (el) { el.disabled = !rules; });
     var rn = $("rules-note"); rn.hidden = rules; rn.textContent = "Your role (" + role + ") cannot change alert rules or the price. Fuel Manager and E&M Manager can.";
     if ($("rec-modal").classList.contains("open")) closeRecord();

@@ -166,4 +166,12 @@
   still chosen by the person adding the reading. If 05 has not been run, the box is switched off with a note and
   readings still save with the fixed litres. Next: Data Keeper runs 05 file; decide if the exception type should be
   suggested automatically from the litres typed.
+- Phase 10 (Claude, on request): automatic exception-type SUGGESTION in Add reading. When diesel consumed is typed, it is
+  compared with the vehicle's fixed litres: more than 10% above = High Consumption, more than 10% below = Low
+  Consumption, otherwise none (the two limits are settings in Customize > Alert rules; Fuel Manager and E&M Manager can
+  change them; saved per browser). The dropdown is pre-selected with a plain note such as "Suggested ... (+16.7% vs the
+  fixed 360 L). You can change it." Refuelling irregularity, mileage mismatch and other stay manual. A manual choice is
+  never overwritten; changing the vehicle or saving resets it. Off when the consumed_litres column is missing (05 not
+  run). No database change. Tested with a stand-in database only. Next: live test; decide if suggestions should also
+  use a wider band for Critical.
 
