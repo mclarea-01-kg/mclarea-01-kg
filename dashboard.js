@@ -60,6 +60,8 @@
   try { var saved = JSON.parse(localStorage.getItem("mclDieselActions") || "null"); if (saved) store = saved; } catch (e) { /* private mode: fine */ }
   function saveStore() { try { localStorage.setItem("mclDieselActions", JSON.stringify(store)); } catch (e) { /* ignore */ } }
 
+  var FONT = '"Inter Variable", Inter, "Segoe UI", Arial, sans-serif';
+  if (typeof Chart !== "undefined") { Chart.defaults.font.family = FONT; Chart.defaults.color = "#33425c"; }
   var charts = {};
   var view = {};   // results of the latest calculation
 
@@ -324,7 +326,7 @@
       var ctx = chart.ctx, horiz = chart.options.indexAxis === "y";
       chart.getDatasetMeta(0).data.forEach(function (bar, i) {
         var v = chart.data.datasets[0].data[i];
-        ctx.save(); ctx.fillStyle = "#1c2530"; ctx.font = "600 12px Segoe UI, Arial, sans-serif";
+        ctx.save(); ctx.fillStyle = "#0b1220"; ctx.font = "600 12px " + FONT;
         if (horiz) { ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(num(v) + " L", bar.x + 6, bar.y); }
         else { ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillText(num(v) + " L", bar.x, bar.y - 4); }
         ctx.restore();
@@ -340,7 +342,7 @@
     $("type-callout").innerHTML = total ? "<strong>" + esc(TYPES[topIdx]) + "</strong> contributes the most excess: " + num(max) + " L (" + pct(max / total) + " of " + num(total) + " L)." : "No excess consumption in the current view.";
     toggleEmpty("empty-type", !total, "No exceptions match the selected filters.");
     if (typeof Chart === "undefined") return;
-    var colors = vals.map(function (v, i) { return total && i === topIdx ? "#c98a00" : "#4a6274"; });
+    var colors = vals.map(function (v, i) { return total && i === topIdx ? "#0b57c7" : "#9db4d3"; });
     if (!charts.type) {
       charts.type = new Chart($("ch-type"), {
         type: "bar",
@@ -376,8 +378,8 @@
       charts.trend = new Chart($("ch-trend"), {
         type: "line",
         data: { labels: labels, datasets: [
-          { label: "Number of exceptions (left axis)", data: counts, borderColor: "#1b5a94", backgroundColor: "#1b5a94", yAxisID: "y", tension: 0, pointRadius: 3 },
-          { label: "Litres above norm (right axis)", data: litres, borderColor: "#b06f00", backgroundColor: "#b06f00", borderDash: [6, 4], yAxisID: "y1", tension: 0, pointRadius: 3 }
+          { label: "Number of exceptions (left axis)", data: counts, borderColor: "#0b57c7", backgroundColor: "#0b57c7", yAxisID: "y", tension: 0, pointRadius: 3 },
+          { label: "Litres above norm (right axis)", data: litres, borderColor: "#0b1220", backgroundColor: "#0b1220", borderDash: [6, 4], yAxisID: "y1", tension: 0, pointRadius: 3 }
         ] },
         options: {
           responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
@@ -454,7 +456,7 @@
     if (typeof Chart !== "undefined") {
       var sorted = fps.slice().sort(function (a, b) { return a.fp < b.fp ? -1 : 1; });
       var labels = sorted.map(function (f) { return f.fp; }), data = sorted.map(function (f) { return f.total; });
-      var colors = sorted.map(function (f) { return f.flag === "Tighten control" ? "#a3231b" : f.flag === "Watch" ? "#c98a00" : "#4a6274"; });
+      var colors = sorted.map(function (f) { return f.flag === "Tighten control" ? "#a3231b" : f.flag === "Watch" ? "#c98a00" : "#0b57c7"; });
       if (!charts.fp) {
         charts.fp = new Chart($("ch-fp"), {
           type: "bar",

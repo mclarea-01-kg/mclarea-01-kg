@@ -103,3 +103,8 @@
   The undone work is still in git history (commits 8d79ffc, 77cbf2c, e570dae, 9b674a3) and can be
   brought back by reverting this rollback commit.
 - Removed Add Record (Claude, on request): deleted entry.html and entry.js and the menu/home links to them. Dashboard unchanged. database/01-setup.sql kept. Next: decide whether to bring back data entry.
+- Restyle (Claude, on request): theme changed to blue / white / black (black header, blue accents and
+  buttons, blue charts); status labels keep green / amber / red on purpose. Font changed to Inter
+  (from jsDelivr, falls back to the system font). Header now has two logo slots. NEW folder images/:
+  put mcl-logo.png (Mahanadi Coalfields) and coal-india-logo.png (Coal India) there; until then the
+  header shows the company names as text. Official logo files must be supplied by the team.
