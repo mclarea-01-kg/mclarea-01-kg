@@ -100,7 +100,6 @@
     $("f-from").max = $("f-to").max = numToDate(DATA_MAX);
     setPreset();
     $("asof").textContent = "Data as on " + fmtDate(numToDate(DATA_MAX)) + ".";
-    $("def-asof").textContent = "The latest date in the data (" + fmtDate(numToDate(DATA_MAX)) + "). Last 7 days, Last 30 days and Current month all count back from it.";
   }
   function readFilters() {
     F.preset = $("f-preset").value;
