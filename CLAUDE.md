@@ -104,4 +104,11 @@
   Known: the data has NO trip counts, so "trips per shift at norm" (default 18) is a made-up
   input on the page. Thin sample data, so treat as guidance. Next: run 01-setup.sql, test
   saving, then make the dashboard and forecast read the database.
+- Phase 4 (Claude): dashboard.html now reads all rows from the diesel_exceptions table
+  (new file load-data.js loads them, then starts dashboard.js and forecast.js). Charts,
+  KPIs, forecast and tables are unchanged. sample-data.js is no longer used by the pages
+  (kept only as the source of the SQL sample rows). Tested only with a stand-in database.
+  Known: needs 01-setup.sql to have been run, otherwise the dashboard shows a red message with
+  the error text. Action Panel requests (inspection / retrain / lock) are still saved only in
+  the browser, not in the database. Next: test live; decide whether to store those requests.
 

@@ -1,5 +1,5 @@
 /* dashboard.js - Diesel Exception Dashboard.
-   Every number on the page is worked out from window.DIESEL_DATA (sample-data.js).
+   Every number on the page is worked out from window.DIESEL_DATA (loaded from the database by load-data.js).
    Nothing is hard-coded. Plain JavaScript, no framework. */
 (function () {
   "use strict";
@@ -99,7 +99,7 @@
     $("f-from").min = $("f-to").min = numToDate(DATA_MIN);
     $("f-from").max = $("f-to").max = numToDate(DATA_MAX);
     setPreset();
-    $("asof").textContent = "Data as on " + fmtDate(numToDate(DATA_MAX)) + ".";
+    $("asof").textContent = "Data as on " + fmtDate(numToDate(DATA_MAX)) + ". " + (window.DIESEL_SOURCE_NOTE || "");
   }
   function readFilters() {
     F.preset = $("f-preset").value;
@@ -727,7 +727,7 @@
     if (typeof Chart === "undefined") {
       showError("loading the chart library", "Chart.js could not be loaded from cdn.jsdelivr.net. Tables and numbers still work; charts are hidden. Check the internet connection.");
     }
-    if (!records.length) { showError("loading the sample data", "No records found in sample-data.js"); return; }
+    if (!records.length) { showError("loading the records", "The database has no records yet. Add one on the Add Record page (or ask the Data Keeper to run database/01-setup.sql)."); return; }
     try { initFilters(); bind(); } catch (e) { showError("setting up the filters", e); return; }
     var err = $("error-area").innerHTML;
     renderAll(true);

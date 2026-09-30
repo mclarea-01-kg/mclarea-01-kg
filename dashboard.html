@@ -25,6 +25,7 @@
 
   <main class="wrap">
     <div id="error-area" role="alert"></div>
+    <div class="empty-msg" id="loading">Loading records from the database...</div>
 
     <!-- FILTER BAR -->
     <section class="filters" aria-label="Filters">
@@ -231,8 +232,9 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="sample-data.js"></script>
-  <script src="dashboard.js"></script>
-  <script src="forecast.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <!-- load-data.js reads the database first, then starts dashboard.js and forecast.js -->
+  <script src="load-data.js"></script>
 </body>
 </html>
