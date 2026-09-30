@@ -97,3 +97,11 @@
   Known: the dashboard still reads sample-data.js, not the database. Next: Data Keeper
   runs 01-setup.sql; test saving on the live site; then Phase 4 = dashboard reads the
   database.
+- Phase 3b (Claude): added a Forecast section to dashboard.html (code in forecast.js; menu link
+  "Forecast"). It forecasts next month's diesel (best / expected / worst), lists operators
+  needing retraining or counselling, and shows dumper trips possible within approved diesel.
+  Kept inside dashboard.html because of the 3-page limit. Reads sample-data.js, not the database.
+  Known: the data has NO trip counts, so "trips per shift at norm" (default 18) is a made-up
+  input on the page. Thin sample data, so treat as guidance. Next: run 01-setup.sql, test
+  saving, then make the dashboard and forecast read the database.
+

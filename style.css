@@ -33,7 +33,7 @@ button, select, input { font: inherit; color: inherit; }
 .head-row { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
 .brand h1 { font-size: 20px; letter-spacing: .4px; text-transform: uppercase; }
 .brand p { margin: 4px 0 0; color: #c5d0d9; font-size: 14px; }
-.menu { display: flex; gap: 8px; }
+.menu { display: flex; flex-wrap: wrap; gap: 8px; }
 .menu a {
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px;
   color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;
@@ -239,3 +239,8 @@ details.box li { margin: 3px 0; }
 .btn.big { margin-top: 14px; min-height: 52px; font-size: 17px; padding: 10px 32px; }
 @media (max-width: 860px) { .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .form-grid { grid-template-columns: minmax(0, 1fr); } .btn.big { width: 100%; } }
+
+.kpis.k4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1150px) { .kpis.k4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .kpis.k4 { grid-template-columns: minmax(0, 1fr); } }
+tr.total-row td { font-weight: 700; background: #f1f4f6; }
