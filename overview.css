@@ -128,3 +128,14 @@ tr.rowlink { cursor: pointer; }
   .cbox { height: 240px; }
   .rec-grid { grid-template-columns: 1fr; }
 }
+
+/* data source banner + add-reading form */
+.banner { margin: 0 0 12px; padding: 10px 14px; border-radius: var(--radius); font-size: 14px; border: 1px solid; }
+.banner.demo { background: var(--warn-bg); border-color: #e6cf85; color: #4d2f00; }
+.banner.ok { background: var(--ok-bg); border-color: #a9d4b0; color: #144d1f; }
+.banner code { display: block; margin-top: 6px; padding: 6px 8px; background: #fff; border-radius: 6px; font-size: 13px; overflow-wrap: anywhere; color: #0b1220; }
+.preview { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; background: #f6f8f9; border: 1px solid var(--line); font-weight: 600; font-size: 14px; }
+.preview.bad { background: var(--warn-bg); color: var(--warn); border-color: #e6cf85; }
+.preview.good { background: var(--ok-bg); color: var(--ok); border-color: #a9d4b0; }
+.btn.big { margin-top: 12px; min-height: 52px; font-size: 17px; width: 100%; }
+.live-pill.warn .dot { background: #c98a00; }

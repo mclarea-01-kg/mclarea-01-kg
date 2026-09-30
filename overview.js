@@ -1,6 +1,8 @@
-/* overview.js - Fuel Overview Dashboard (dashboard.html).
-   Reads made-up data from overview-data.js. Every number is worked out here, none is typed in.
-   "Live" readings are SIMULATED in the browser (real-time needs the database: a later phase). */
+/* overview.js - Fuel Dashboard (dashboard.html).
+   Reads the table fuel_readings from Supabase. New readings reach every open dashboard live
+   (Supabase Realtime, plus a check every few seconds as a back-up) and raise alerts.
+   If the database cannot be read, it falls back to DEMO MODE: built-in made-up data from
+   overview-data.js and simulated readings. Every number is worked out here, none is typed in. */
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
@@ -24,45 +26,84 @@
   function fmtDate(s) { var d = new Date(dayNum(s) * 86400000); return String(d.getUTCDate()).padStart(2, "0") + "-" + MON[d.getUTCMonth()] + "-" + d.getUTCFullYear(); }
   function fmtShort(s) { var d = new Date(dayNum(s) * 86400000); return d.getUTCDate() + " " + MON[d.getUTCMonth()]; }
   function joinList(a) { return a.length <= 1 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]; }
-  function showError(where, e) {
+  function showError(where, e, hint) {
     var msg = e && e.message ? e.message : String(e);
-    $("error-area").innerHTML = '<div class="error-box"><strong>Sorry, something went wrong while ' + esc(where) + '.</strong> Please send this message to the team:<code>' + esc(msg) + "</code></div>";
+    $("error-area").innerHTML = '<div class="error-box"><strong>Sorry, something went wrong while ' + esc(where) + ".</strong>" + esc(hint || "") + " Please send this message to the team:<code>" + esc(msg) + "</code></div>";
   }
   function load(key, fallback) { try { var v = JSON.parse(localStorage.getItem(key) || "null"); return v == null ? fallback : v; } catch (e) { return fallback; } }
   function save(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* private mode: fine */ } }
 
-  var META = window.OVERVIEW_META, ROWS = window.OVERVIEW_ROWS;
-  if (!META || !ROWS || !ROWS.length) { showError("loading the sample data", "overview-data.js is missing or empty."); return; }
+  var META = window.OVERVIEW_META, ROWS = window.OVERVIEW_ROWS;   // built-in sample data (demo mode only)
   if (typeof Chart === "undefined") showError("loading the chart library", "Chart.js could not be loaded from cdn.jsdelivr.net. Numbers and tables still work; charts are hidden. Check the internet connection.");
   else { Chart.defaults.font.family = FONT; Chart.defaults.color = "#33425c"; }
+
+  var FLAGS = ["", "Refueling Irregularity", "Mileage Mismatch", "Other"];
+  var SHIFTS = ["A Shift", "B Shift", "C Shift"];
+  var TYPE_ORDER = ["H.E. Dumpers", "Tippers", "Excavators", "Dozers", "Graders", "Others"];
 
   /* ================= settings, records, state ================= */
   var S = load("mclOverviewSettings", {});
   Object.keys(DEFAULTS).forEach(function (k) { if (S[k] === undefined) S[k] = JSON.parse(JSON.stringify(DEFAULTS[k])); });
   WIDGETS.forEach(function (w) { if (S.widgets[w[0]] === undefined) S.widgets[w[0]] = true; });
-  var overrides = load("mclOverviewStatus", {});
+  var overrides = load("mclOverviewStatus", {});   // demo mode only; real statuses live in the database
   var views = load("mclOverviewViews", []);
 
-  var machines = META.machines;
-  var records = ROWS.map(function (r, i) {
-    var m = machines[r[1]];
-    return { id: i, date: r[0], day: dayNum(r[0]), no: m.no, vtype: META.types[m.type], mine: META.mines[m.mine], siding: META.sidings[r[3]], shift: META.shifts[r[2]], exp: r[4], act: r[5], km: r[6], flag: r[7], status: META.statuses[r[8]], live: false };
-  });
-  var DATA_MIN = records[0].day, DATA_MAX = records[records.length - 1].day;
+  var MODE = "demo", db = null, channel = null, pollTimer = null, lastCreated = "", connState = "demo", dbIds = {};
+  var records = [], machines = [], mineList = [], sidingList = [], typeList = TYPE_ORDER.slice();
+  var DATA_MIN = 0, DATA_MAX = 0;
+  function todayLocal() { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function makeRec(o) {
+    return { id: records.length, date: o.date, day: dayNum(o.date), no: o.no, vtype: o.vtype, mine: o.mine, siding: o.siding, shift: o.shift, exp: o.exp, act: o.act, km: o.km,
+      flag: Math.max(0, FLAGS.indexOf(o.flag || "")), status: o.status, dbId: o.dbId || null, live: !!o.live };
+  }
+  function recFromDb(row) {
+    return makeRec({ date: String(row.reading_date).slice(0, 10), vtype: row.vehicle_type, no: row.vehicle_no, mine: row.mine, siding: row.siding, shift: row.shift,
+      exp: Number(row.expected_litres), act: Number(row.actual_litres), km: Number(row.km), flag: row.exception_flag, status: row.status, dbId: row.id });
+  }
+  function loadDemo() {
+    records = [];
+    ROWS.forEach(function (r) {
+      var m = META.machines[r[1]];
+      records.push(makeRec({ date: r[0], vtype: META.types[m.type], no: m.no, mine: META.mines[m.mine], siding: META.sidings[r[3]], shift: META.shifts[r[2]], exp: r[4], act: r[5], km: r[6], flag: META.flags[r[7]], status: META.statuses[r[8]] }));
+    });
+  }
+  function deriveMachines() {
+    var by = {};
+    records.forEach(function (r) { (by[r.no] = by[r.no] || []).push(r); });
+    return Object.keys(by).sort().map(function (no) {
+      var l = by[no].slice().sort(function (a, b) { return a.day - b.day; }), last = l[l.length - 1];
+      var withKm = l.filter(function (r) { return r.km > 0; });
+      var eff = withKm.length ? sum(withKm, function (r) { return r.km / r.exp; }) / withKm.length : 3.5;
+      return { no: no, vtype: last.vtype, mine: last.mine, siding: last.siding, norm: last.exp, eff: eff };
+    });
+  }
+  function refreshLists() {
+    mineList = uniq(records.map(function (r) { return r.mine; })).sort();
+    sidingList = uniq(records.map(function (r) { return r.siding; })).sort();
+    var extra = uniq(records.map(function (r) { return r.vtype; })).filter(function (t) { return TYPE_ORDER.indexOf(t) === -1; }).sort();
+    typeList = TYPE_ORDER.concat(extra);
+    machines = deriveMachines();
+    if (records.length) { DATA_MIN = Math.min.apply(null, records.map(function (r) { return r.day; })); DATA_MAX = Math.max.apply(null, records.map(function (r) { return r.day; })); }
+    else { DATA_MIN = DATA_MAX = dayNum(todayLocal()); }
+    function dl(id, vals) { $(id).innerHTML = vals.map(function (v) { return '<option value="' + esc(v) + '">'; }).join(""); }
+    dl("dl-no", machines.map(function (m) { return m.no; })); dl("dl-mine", mineList); dl("dl-siding", sidingList);
+    var cur = $("a-type").value;
+    $("a-type").innerHTML = typeList.map(function (t) { return "<option" + (t === cur ? " selected" : "") + ">" + esc(t) + "</option>"; }).join("");
+  }
   var F = { preset: "30", from: "", to: "", mine: "", siding: "", vtype: "", eq: "", shift: "", etype: "", status: "" };
   var UI = { sortKey: "date", sortDir: "desc", page: 1, search: "" };
   var charts = {}, view = {}, alerts = [], alertSeq = 1, liveCount = 0, timer = null, audio = null;
 
   function devPct(r) { return (r.act - r.exp) / r.exp * 100; }
   function excType(r) {
-    if (r.flag) return META.flags[r.flag];
+    if (r.flag) return FLAGS[r.flag];
     var d = devPct(r);
     if (d > S.high) return "High Consumption";
     if (d < -S.low) return "Low Consumption";
     return null;
   }
   function keyOf(r) { return r.live ? "L" + r.id : r.date + "|" + r.no + "|" + r.shift; }
-  function statusOf(r) { return overrides[keyOf(r)] || r.status; }
+  function statusOf(r) { return MODE === "db" ? r.status : (overrides[keyOf(r)] || r.status); }
   function severity(r) { return Math.abs(devPct(r)) >= S.crit ? "crit" : "warn"; }
 
   /* ================= filters ================= */
@@ -72,7 +113,7 @@
     $(id).innerHTML = h;
   }
   function eqOptions() {
-    return machines.filter(function (m) { return (!F.vtype || META.types[m.type] === F.vtype) && (!F.mine || META.mines[m.mine] === F.mine); }).map(function (m) { return m.no; });
+    return machines.filter(function (m) { return (!F.vtype || m.vtype === F.vtype) && (!F.mine || m.mine === F.mine); }).map(function (m) { return m.no; });
   }
   function setPreset() {
     var to = DATA_MAX, from;
@@ -83,14 +124,16 @@
     F.from = numToDate(Math.max(from, DATA_MIN)); F.to = numToDate(to);
     $("f-from").value = F.from; $("f-to").value = F.to;
   }
-  function initFilters() {
-    fillSelect("f-mine", "All", META.mines, ""); fillSelect("f-siding", "All", META.sidings, "");
-    fillSelect("f-vtype", "All", META.types, ""); fillSelect("f-eq", "All", eqOptions(), "");
-    fillSelect("f-shift", "All", META.shifts, ""); fillSelect("f-etype", "All", EXC_TYPES, ""); fillSelect("f-status", "All", STATUSES, "");
-    $("f-from").min = $("f-to").min = numToDate(DATA_MIN); $("f-from").max = $("f-to").max = numToDate(DATA_MAX);
-    setPreset();
-    $("asof").textContent = "Data as on " + fmtDate(numToDate(DATA_MAX)) + ".";
+  function rebuildFilterOptions() {
+    fillSelect("f-mine", "All", mineList, F.mine); fillSelect("f-siding", "All", sidingList, F.siding); fillSelect("f-vtype", "All", typeList, F.vtype);
+    fillSelect("f-eq", "All", eqOptions(), F.eq); fillSelect("f-shift", "All", SHIFTS, F.shift); fillSelect("f-etype", "All", EXC_TYPES, F.etype); fillSelect("f-status", "All", STATUSES, F.status);
   }
+  function refreshBounds() {
+    $("f-from").min = $("f-to").min = numToDate(DATA_MIN); $("f-from").max = $("f-to").max = numToDate(DATA_MAX);
+    if (F.preset !== "custom") setPreset();
+    $("asof").textContent = "Data as on " + fmtDate(numToDate(DATA_MAX)) + " · " + (MODE === "db" ? records.length + " readings from the database." : "built-in sample data (demo mode).");
+  }
+  function initFilters() { rebuildFilterOptions(); refreshBounds(); }
   function readFilters() {
     F.preset = $("f-preset").value;
     if (F.preset !== "custom") setPreset();
@@ -243,20 +286,20 @@
   }
 
   function renderMine() {
-    var rows = META.mines.map(function (m) { return [m, view.exc.filter(function (r) { return r.mine === m; }).length]; }).sort(function (a, b) { return b[1] - a[1]; });
+    var rows = mineList.map(function (m) { return [m, view.exc.filter(function (r) { return r.mine === m; }).length]; }).sort(function (a, b) { return b[1] - a[1]; });
     toggleEmpty("empty-mine", !sum(rows, function (r) { return r[1]; }));
     upsert("mine", hbarCfg(rows.map(function (r) { return r[0]; }), rows.map(function (r) { return r[1]; }), "#0b57c7"));
   }
 
   function renderEff() {
-    var rows = META.types.map(function (t) { var l = view.pool.filter(function (r) { return r.vtype === t; }); return [t, effOf(l), l.length]; }).filter(function (r) { return r[2]; }).sort(function (a, b) { return b[1] - a[1]; });
+    var rows = typeList.map(function (t) { var l = view.pool.filter(function (r) { return r.vtype === t; }); return [t, effOf(l), l.length]; }).filter(function (r) { return r[2]; }).sort(function (a, b) { return b[1] - a[1]; });
     toggleEmpty("empty-eff", !rows.length);
     upsert("eff", { type: "bar", data: { labels: rows.map(function (r) { return r[0]; }), datasets: [{ label: "km/l", data: rows.map(function (r) { return Math.round(r[1] * 100) / 100; }), backgroundColor: "#0b57c7", borderRadius: 3, showLabels: true, labelFmt: function (v) { return v.toFixed(2); } }] },
       options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: "km/l" } }, x: { grid: { display: false } } } }, plugins: [labelPlugin] });
   }
 
   function renderEquip() {
-    var rows = META.types.map(function (t) { return [t, sum(view.pool.filter(function (r) { return r.vtype === t; }), function (r) { return r.act; })]; }).filter(function (r) { return r[1]; }).sort(function (a, b) { return b[1] - a[1]; });
+    var rows = typeList.map(function (t) { return [t, sum(view.pool.filter(function (r) { return r.vtype === t; }), function (r) { return r.act; })]; }).filter(function (r) { return r[1]; }).sort(function (a, b) { return b[1] - a[1]; });
     toggleEmpty("empty-equip", !rows.length);
     var cfg = hbarCfg(rows.map(function (r) { return r[0]; }), rows.map(function (r) { return r[1]; }), "#0b57c7");
     cfg.options.layout.padding.right = 60;
@@ -321,7 +364,7 @@
     if (exc.length) {
       var ct = EXC_TYPES.map(function (t) { return [t, exc.filter(function (r) { return r._t === t; }).length]; }).sort(function (a, b) { return b[1] - a[1]; });
       items.push(ct[0][0] + " cases (" + Math.round(ct[0][1] / exc.length * 100) + "%) are the major concern.");
-      var cm = META.mines.map(function (m) { return [m, exc.filter(function (r) { return r.mine === m; }).length]; }).sort(function (a, b) { return b[1] - a[1]; }).filter(function (x) { return x[1]; });
+      var cm = mineList.map(function (m) { return [m, exc.filter(function (r) { return r.mine === m; }).length]; }).sort(function (a, b) { return b[1] - a[1]; }).filter(function (x) { return x[1]; });
       if (cm.length >= 2) items.push(cm[0][0] + " and " + cm[1][0] + " have the highest number of exceptions (" + cm[0][1] + " and " + cm[1][1] + ").");
       else if (cm.length) items.push(cm[0][0] + " has all the exceptions (" + cm[0][1] + ").");
       var excess = sum(exc.filter(function (r) { return r.act > r.exp; }), function (r) { return r.act - r.exp; });
@@ -329,7 +372,7 @@
     }
     var eff = effOf(view.pool), dEf = delta(eff, effOf(view.prev));
     if (eff) items.push("Overall fuel efficiency " + (dEf === null ? "is " : dEf >= 0 ? "improved to " : "declined to ") + eff.toFixed(2) + " km/l" + (dEf === null ? "." : " (" + (dEf >= 0 ? "▲ " : "▼ ") + num1(Math.abs(dEf)) + "%)."));
-    var bt = META.types.map(function (t) { return [t, sum(view.pool.filter(function (r) { return r.vtype === t; }), function (r) { return r.act; })]; }).sort(function (a, b) { return b[1] - a[1]; });
+    var bt = typeList.map(function (t) { return [t, sum(view.pool.filter(function (r) { return r.vtype === t; }), function (r) { return r.act; })]; }).sort(function (a, b) { return b[1] - a[1]; });
     if (cons && bt[0][1]) items.push(bt[0][0] + " are the highest fuel consumers (" + Math.round(bt[0][1] / cons * 100) + "% of total).");
     $("insights").innerHTML = items.map(function (t, i) { return '<li><span class="ic" aria-hidden="true">' + (i + 1) + "</span><span>" + esc(t) + "</span></li>"; }).join("");
   }
@@ -378,10 +421,10 @@
     $("rec-title").textContent = r.no + " – " + r.vtype + " · " + fmtDate(r.date);
     var rows = [["Mine / Siding", r.mine + " – " + r.siding], ["Shift", r.shift], ["Expected", num(r.exp) + " L"], ["Actual", num(r.act) + " L"],
       ["Variance", (v > 0 ? "+" : "") + num(v) + " L (" + (d > 0 ? "+" : "") + num1(d) + "%)"], ["Distance", num(r.km) + " km"], ["Efficiency", (r.km / r.act).toFixed(2) + " km/l"],
-      ["Exception type", t || "Within limits"], ["Cost of excess", v > 0 ? rs(v * S.price) : "₹0"], ["Record", r.live ? "Simulated live reading" : "Sample record"]];
+      ["Exception type", t || "Within limits"], ["Cost of excess", v > 0 ? rs(v * S.price) : "₹0"], ["Record", MODE === "db" ? "Saved in the database" : (r.live ? "Simulated live reading" : "Sample record")]];
     var h = '<dl class="rec-grid">' + rows.map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("") + "</dl>";
     h += '<div class="fld"><label for="rec-status">Status</label><select id="rec-status">' + STATUSES.map(function (s) { return '<option' + (s === statusOf(r) ? " selected" : "") + ">" + s + "</option>"; }).join("") + '</select></div>';
-    h += '<button class="btn primary" id="rec-save" type="button" data-id="' + id + '">Save status</button><p class="note">Saved in this browser only (demo).</p>';
+    h += '<button class="btn primary" id="rec-save" type="button" data-id="' + id + '">Save status</button><p class="note">'+(MODE === "db" ? "Saved in the database for everyone." : "Demo mode: saved in this browser only.")+'</p>';
     $("rec-body").innerHTML = h;
     if (!$("rec-modal").classList.contains("open")) recOpener = document.activeElement;
     $("rec-modal").classList.add("open"); $("rec-close").focus();
@@ -397,7 +440,7 @@
     var b = $(id).querySelector("button"); if (b) b.focus();
   }
   function closeDrawers(keepFocus) {
-    ["drawer-alerts", "drawer-custom"].forEach(function (i) { $(i).hidden = true; });
+    ["drawer-alerts", "drawer-custom", "drawer-add"].forEach(function (i) { $(i).hidden = true; });
     $("backdrop").hidden = true;
     if (!keepFocus && drawerOpener && document.contains(drawerOpener)) drawerOpener.focus();
   }
@@ -438,7 +481,7 @@
     } catch (e) { /* no sound: fine */ }
   }
   function toast(a) {
-    if (!S.toasts) return;
+    if (!S.toasts || !$("drawer-alerts").hidden) return;   // the open Alerts panel already shows it
     var box = $("toasts"), el = document.createElement("div");
     el.className = "toast " + a.sev; el.setAttribute("role", a.sev === "crit" ? "alert" : "status");
     el.innerHTML = "<b>" + (a.sev === "crit" ? "■ Critical alert" : "▲ Fuel alert") + "</b>" + esc(a.text) + '<div class="t-actions"><button class="btn" type="button" data-toast-view>View alerts</button><button class="btn" type="button" data-toast-x>Dismiss</button></div>';
@@ -447,37 +490,154 @@
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 9000);
   }
 
-  /* ---- simulated live feed ---- */
+  /* ---- new readings: real (database) or simulated (demo mode) ---- */
+  function hintFor(msg) {
+    if (/relation .* does not exist|schema cache|Could not find the table/i.test(msg)) return " The table may not exist yet. Ask the Data Keeper to run database/02-fuel-readings.sql in the Supabase SQL Editor.";
+    if (/permission denied|row-level security/i.test(msg)) return " The database is refusing access. Ask the Data Keeper to check that 02-fuel-readings.sql ran fully (policies and grant).";
+    if (/Failed to fetch|NetworkError|network|timed out/i.test(msg)) return " This looks like an internet problem. Please try again.";
+    return "";
+  }
+  function renderPill() {
+    var pill = $("live-pill"), n = liveCount ? " · " + liveCount + " new" : "";
+    var map = { connected: ["live-pill on", "Live: connected" + n], polling: ["live-pill warn", "Live: checking every " + (S.interval >= 60 ? S.interval / 60 + " min" : S.interval + " s") + n],
+      paused: ["live-pill", "Live: paused"], demo: ["live-pill on", "Demo: simulated feed" + n] };
+    var m = map[S.live ? connState : "paused"];
+    pill.className = m[0]; $("live-text").textContent = m[1];
+  }
+  function flashPill() { var pill = $("live-pill"); pill.classList.add("flash"); setTimeout(function () { pill.classList.remove("flash"); }, 1200); }
+
+  // new records (already pushed into `records`) have arrived: refresh lists, raise alerts, redraw
+  function afterNew(list) {
+    refreshLists(); rebuildFilterOptions(); refreshBounds();
+    list.forEach(function (r) {
+      liveCount++; r._t = excType(r);
+      if (r._t) { var a = addAlert(r, true); toast(a); if (a.sev === "crit" && S.sound) beep(); }
+    });
+    if (!$("drawer-alerts").hidden) renderAlerts();
+    flashPill(); renderPill(); renderAll();
+  }
+  function addFromDb(row) {
+    if (!row || !row.id || dbIds[row.id]) return null;
+    dbIds[row.id] = 1;
+    var r = recFromDb(row); records.push(r);
+    if (String(row.created_at || "") > lastCreated) lastCreated = String(row.created_at);
+    return r;
+  }
+  function onUpdate(row) {
+    var r = records.filter(function (x) { return x.dbId === row.id; })[0]; if (!r) return;
+    r.status = row.status; r.act = Number(row.actual_litres); r.exp = Number(row.expected_litres); r.km = Number(row.km);
+    r.flag = Math.max(0, FLAGS.indexOf(row.exception_flag || "")); renderAll();
+  }
+  function poll() {
+    if (MODE !== "db" || !db) return;
+    var q = db.from("fuel_readings").select("*").order("created_at", { ascending: true }).limit(200);
+    if (lastCreated) q = q.gt("created_at", lastCreated);
+    q.then(function (res) {
+      if (res.error) { connState = "polling"; renderPill(); return; }
+      var fresh = []; (res.data || []).forEach(function (row) { var r = addFromDb(row); if (r) fresh.push(r); });
+      if (fresh.length) afterNew(fresh);
+    }, function () { connState = "polling"; renderPill(); });
+  }
+  function stopLive() {
+    if (timer) { clearInterval(timer); timer = null; }
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (channel && db) { try { db.removeChannel(channel); } catch (e) { /* ignore */ } channel = null; }
+  }
+  function startLive() {
+    stopLive();
+    if (!S.live) { renderPill(); return; }
+    if (MODE === "db") {
+      connState = "polling"; renderPill();
+      try {
+        channel = db.channel("fuel-readings-live")
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "fuel_readings" }, function (p) { var r = addFromDb(p.new); if (r) afterNew([r]); })
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "fuel_readings" }, function (p) { onUpdate(p.new); })
+          .subscribe(function (status) { connState = status === "SUBSCRIBED" ? "connected" : "polling"; renderPill(); });
+      } catch (e) { connState = "polling"; renderPill(); }
+      pollTimer = setInterval(poll, S.interval * 1000);   // back-up: also works if live updates are switched off in Supabase
+    } else {
+      connState = "demo"; renderPill();
+      timer = setInterval(function () { tick(false); }, S.interval * 1000);
+    }
+  }
+
   function rnd(a, b) { return a + Math.random() * (b - a); }
-  function makeReading(forceExc) {
+  function makeDemoReading(forceExc) {
     var m = machines[Math.floor(Math.random() * machines.length)], h = new Date().getHours();
-    var shift = h >= 6 && h < 14 ? 0 : h >= 14 && h < 22 ? 1 : 2, flag = 0, dev, kmf = 1;
+    var shift = SHIFTS[h >= 6 && h < 14 ? 0 : h >= 14 && h < 22 ? 1 : 2], flag = "", dev, kmf = 1;
     if (forceExc || Math.random() < 0.3) {
       var p = Math.random();
       if (p < 0.6) dev = rnd(0.12, 0.42); else if (p < 0.75) dev = -rnd(0.12, 0.26);
-      else if (p < 0.9) { dev = rnd(0.06, 0.14); flag = 1; } else { dev = rnd(0.04, 0.12); flag = 2; kmf = 0.72; }
+      else if (p < 0.9) { dev = rnd(0.06, 0.14); flag = FLAGS[1]; } else { dev = rnd(0.04, 0.12); flag = FLAGS[2]; kmf = 0.72; }
     } else dev = rnd(-0.06, 0.06);
-    var exp = m.norm, act = Math.round(exp * (1 + dev)), km = Math.round(exp * m.eff * kmf * rnd(0.98, 1.02));
-    var r = { id: records.length, date: numToDate(DATA_MAX), day: DATA_MAX, no: m.no, vtype: META.types[m.type], mine: META.mines[m.mine], siding: META.sidings[Math.floor(Math.random() * 3)], shift: META.shifts[shift], exp: exp, act: act, km: km, flag: flag, status: "Open", live: true };
-    r._t = excType(r); records.push(r); liveCount++;
-    return r;
+    return { date: MODE === "db" ? todayLocal() : numToDate(DATA_MAX), shift: shift, no: m.no, vtype: m.vtype, mine: m.mine, siding: sidingList[Math.floor(Math.random() * sidingList.length)] || m.siding || "Siding 1",
+      exp: m.norm, act: Math.round(m.norm * (1 + dev)), km: Math.round(m.norm * m.eff * kmf * rnd(0.98, 1.02)), flag: flag };
   }
-  function tick(forceExc) {
-    var r = makeReading(forceExc);
-    var pill = $("live-pill"); pill.classList.add("flash"); setTimeout(function () { pill.classList.remove("flash"); }, 1200);
-    $("live-text").textContent = "Live: on · " + liveCount + " new reading" + (liveCount === 1 ? "" : "s");
-    if (r._t) {
-      var a = addAlert(r, true); toast(a); if (a.sev === "crit" && S.sound) beep();
-      if (!$("drawer-alerts").hidden) renderAlerts();
+  function tick(forceExc) { saveReading(makeDemoReading(forceExc), function () {}); }
+
+  // save one reading: to the database (real) or to this browser only (demo)
+  function saveReading(v, done) {
+    var tmp = { exp: v.exp, act: v.act, flag: Math.max(0, FLAGS.indexOf(v.flag || "")) };
+    var status = excType(tmp) ? "Open" : "Closed";
+    if (MODE === "db") {
+      db.from("fuel_readings").insert({ reading_date: v.date, mine: v.mine, siding: v.siding, vehicle_type: v.vtype, vehicle_no: v.no, shift: v.shift,
+        expected_litres: v.exp, actual_litres: v.act, km: v.km || 0, exception_flag: v.flag || "", status: status }).select().then(function (res) {
+        if (res.error) { showError("saving the reading", res.error, hintFor(res.error.message || "")); done(res.error); return; }
+        var r = addFromDb(res.data && res.data[0]); if (r) afterNew([r]);
+        done(null, r);
+      }, function (e) { showError("saving the reading", e, hintFor(String(e && e.message))); done(e); });
+    } else {
+      var r = makeRec({ date: v.date, vtype: v.vtype, no: v.no, mine: v.mine, siding: v.siding, shift: v.shift, exp: v.exp, act: v.act, km: v.km, flag: v.flag, status: status, live: true });
+      records.push(r); afterNew([r]); done(null, r);
     }
-    renderAll();
   }
-  function startLive() {
-    if (timer) { clearInterval(timer); timer = null; }
-    var pill = $("live-pill");
-    pill.className = "live-pill" + (S.live ? " on" : "");
-    $("live-text").textContent = S.live ? "Live: on" + (liveCount ? " · " + liveCount + " new reading" + (liveCount === 1 ? "" : "s") : "") : "Live: paused";
-    if (S.live) timer = setInterval(function () { tick(false); }, S.interval * 1000);
+  function setStatus(r, s) {
+    if (MODE === "db" && r.dbId) {
+      db.from("fuel_readings").update({ status: s }).eq("id", r.dbId).select().then(function (res) {
+        if (res.error) { showError("saving the status", res.error, hintFor(res.error.message || "")); return; }
+        r.status = s; closeRecord(); renderAll();
+      }, function (e) { showError("saving the status", e, hintFor(String(e && e.message))); });
+    } else { overrides[keyOf(r)] = s; save("mclOverviewStatus", overrides); closeRecord(); renderAll(); }
+  }
+
+  /* ================= add-reading form ================= */
+  function previewAdd() {
+    var e = parseFloat($("a-exp").value), a = parseFloat($("a-act").value), p = $("a-preview");
+    if (!(e > 0) || isNaN(a)) { p.className = "preview"; p.textContent = "Enter expected and actual litres to see the result."; return; }
+    var t = excType({ exp: e, act: a, flag: Math.max(0, FLAGS.indexOf($("a-flag").value)) }), d = (a - e) / e * 100;
+    if (t) { p.className = "preview bad"; p.textContent = "▲ " + t + ": " + (d > 0 ? "+" : "") + num1(d) + "% (" + (a - e > 0 ? "+" : "") + num(a - e) + " L). This raises an alert for everyone."; }
+    else { p.className = "preview good"; p.textContent = "✔ Within limits (" + (d > 0 ? "+" : "") + num1(d) + "%). No alert."; }
+  }
+  function openAdd() {
+    var h = new Date().getHours();
+    $("a-date").value = todayLocal(); $("a-shift").value = SHIFTS[h >= 6 && h < 14 ? 0 : h >= 14 && h < 22 ? 1 : 2];
+    $("a-msg").innerHTML = ""; previewAdd();
+    $("add-note").textContent = MODE === "db" ? "One reading = one vehicle, one shift. It is saved in the database and every open dashboard gets the alert. Use made-up values only." : "Demo mode: the database is not connected, so this reading is kept in this browser only.";
+    openDrawer("drawer-add");
+  }
+  function bindAdd() {
+    ["a-exp", "a-act", "a-flag"].forEach(function (id) { $(id).addEventListener("input", previewAdd); $(id).addEventListener("change", previewAdd); });
+    $("a-no").addEventListener("change", function () {
+      var m = machines.filter(function (x) { return x.no.toLowerCase() === $("a-no").value.trim().toLowerCase(); })[0]; if (!m) return;
+      $("a-no").value = m.no; $("a-type").value = m.vtype; $("a-mine").value = m.mine; if (!$("a-siding").value) $("a-siding").value = m.siding;
+      if (!$("a-exp").value) $("a-exp").value = m.norm; previewAdd();
+    });
+    $("add-form").addEventListener("submit", function (ev) {
+      ev.preventDefault(); $("error-area").innerHTML = ""; $("a-msg").innerHTML = "";
+      var v = { date: $("a-date").value, shift: $("a-shift").value, no: $("a-no").value.trim(), vtype: $("a-type").value, mine: $("a-mine").value.trim(), siding: $("a-siding").value.trim(),
+        exp: parseFloat($("a-exp").value), act: parseFloat($("a-act").value), km: parseFloat($("a-km").value) || 0, flag: $("a-flag").value };
+      var miss = [];
+      if (!v.date) miss.push("Date"); if (!v.no) miss.push("Vehicle no."); if (!v.mine) miss.push("Mine"); if (!v.siding) miss.push("Siding");
+      if (!(v.exp > 0)) miss.push("Expected litres (more than 0)"); if (isNaN(v.act) || v.act < 0) miss.push("Actual litres (0 or more)"); if (v.km < 0) miss.push("Distance (0 or more)");
+      if (miss.length) { $("a-msg").innerHTML = '<p class="msg bad">Please fill in: ' + esc(miss.join(", ")) + ".</p>"; return; }
+      var btn = $("a-save"); btn.disabled = true; btn.textContent = "Saving...";
+      saveReading(v, function (err) {
+        btn.disabled = false; btn.textContent = "Save reading";
+        if (err) { $("a-msg").innerHTML = '<p class="msg bad">The reading was NOT saved. See the red message at the top of the page.</p>'; return; }
+        $("a-msg").innerHTML = '<p class="msg">Saved: ' + esc(v.no) + ", " + esc(v.shift) + ", " + esc(fmtDate(v.date)) + ".</p>";
+        ["a-no", "a-exp", "a-act", "a-km"].forEach(function (id) { $(id).value = ""; }); $("a-flag").value = ""; previewAdd();
+      });
+    });
   }
 
   /* ================= customize panel ================= */
@@ -540,6 +700,7 @@
     $("filter-toggle").addEventListener("click", function () { var o = $("sidebar").classList.toggle("open"); this.setAttribute("aria-expanded", o ? "true" : "false"); });
     $("d-search").addEventListener("input", function () { UI.search = this.value; UI.page = 1; renderDetails(); });
     $("d-csv").addEventListener("click", downloadCsv);
+    $("btn-add").addEventListener("click", openAdd);
     $("btn-alerts").addEventListener("click", function () { openDrawer("drawer-alerts"); });
     $("btn-custom").addEventListener("click", function () { openDrawer("drawer-custom"); });
     $("backdrop").addEventListener("click", function () { closeDrawers(); });
@@ -549,7 +710,10 @@
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeRecord(); closeDrawers(); } if ((e.key === "Enter") && e.target.getAttribute && e.target.getAttribute("data-rec")) openRecord(+e.target.getAttribute("data-rec")); });
     $("al-ack").addEventListener("click", function () { alerts.forEach(function (a) { a.acked = true; }); renderAlerts(); updateBadge(); });
     $("al-clear").addEventListener("click", function () { alerts = []; renderAlerts(); updateBadge(); });
-    $("al-test").addEventListener("click", function () { tick(true); });
+    $("al-test").addEventListener("click", function () {
+      if (MODE === "db" && !window.confirm("Save one made-up exception reading to the database?\n\nEvery open dashboard will get the alert.")) return;
+      tick(true);
+    });
     $("alert-list").addEventListener("click", function (e) {
       var ack = e.target.getAttribute("data-alack"), rec = e.target.getAttribute("data-alrec");
       if (ack) { alerts.forEach(function (a) { if (a.id === +ack) a.acked = true; }); renderAlerts(); updateBadge(); }
@@ -561,7 +725,7 @@
     });
     $("rec-body").addEventListener("click", function (e) {
       if (e.target.id !== "rec-save") return;
-      var r = records[+e.target.getAttribute("data-id")]; overrides[keyOf(r)] = $("rec-status").value; save("mclOverviewStatus", overrides); closeRecord(); renderAll();
+      setStatus(records[+e.target.getAttribute("data-id")], $("rec-status").value);
     });
     document.addEventListener("click", function (e) {
       var t = e.target.closest ? e.target.closest("[data-sort],[data-page],tr[data-rec]") : null; if (!t) return;
@@ -573,8 +737,48 @@
   }
 
   /* ================= start ================= */
-  try {
-    initFilters(); initCustomize(); bindCustomize(); bind(); seedAlerts();
+  function setBanner(html, cls) { $("source-banner").innerHTML = html ? '<div class="banner ' + cls + '">' + html + "</div>" : ""; }
+  function setModeTexts() {
+    $("al-note").textContent = MODE === "db"
+      ? "Real alerts: any new reading saved in the database, from this or any other device, that breaks your alert rules appears here at once. Rules come from Customize."
+      : "Demo mode: the database is not connected. Readings are simulated in this browser.";
+    $("al-test").textContent = MODE === "db" ? "Send test reading" : "Send test alert";
+    $("al-test").title = MODE === "db" ? "Saves one made-up exception reading to the database, so you can watch the alert arrive" : "";
+  }
+  function finish(bannerHtml, bannerCls) {
+    refreshLists(); initFilters(); seedAlerts(); setModeTexts(); setBanner(bannerHtml, bannerCls);
     renderAll(); startLive();
+  }
+  function useDemo(err) {
+    MODE = "demo"; loadDemo();
+    var msg = err && err.message ? err.message : String(err);
+    finish("<strong>Demo mode: showing built-in sample data.</strong> The database could not be read, so alerts are simulated." + esc(hintFor(msg)) + " Please send this message to the team:<code>" + esc(msg) + "</code>", "demo");
+  }
+  function fetchAll(from, acc) {
+    return db.from("fuel_readings").select("*").order("reading_date", { ascending: true }).order("created_at", { ascending: true }).range(from, from + 999).then(function (res) {
+      if (res.error) throw res.error;
+      acc = acc.concat(res.data || []);
+      return (res.data || []).length === 1000 ? fetchAll(from + 1000, acc) : acc;
+    });
+  }
+  function boot() {
+    var url = window.SUPABASE_URL || "", key = window.SUPABASE_PUBLISHABLE_KEY || "";
+    if (!window.supabase) { useDemo("The Supabase library could not be loaded from cdn.jsdelivr.net. Check the internet connection."); return; }
+    if (url.indexOf("PASTE") !== -1 || key.indexOf("PASTE") !== -1) { useDemo("config.js still has the placeholder Project URL or key."); return; }
+    db = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_PUBLISHABLE_KEY);
+    setBanner("Loading readings from the database...", "ok");
+    var timeout = new Promise(function (_, rej) { setTimeout(function () { rej(new Error("The database did not answer within 15 seconds (timed out).")); }, 15000); });
+    Promise.race([fetchAll(0, []), timeout]).then(function (rows) {
+      MODE = "db"; records = []; dbIds = {}; lastCreated = "";
+      rows.forEach(function (row) { addFromDb(row); });
+      var note = rows.length
+        ? "<strong>Connected to the database</strong> · " + rows.length + " readings. New readings raise alerts live."
+        : "<strong>Connected to the database, but it has no readings yet.</strong> Use “Add reading”, or ask the Data Keeper to run database/02-fuel-readings.sql (it also adds sample rows).";
+      finish(note, "ok");
+    }).catch(function (e) { if (window.console) console.error(e); useDemo(e); });
+  }
+  try {
+    initCustomize(); bindCustomize(); bind(); bindAdd(); refreshLists();
+    boot();
   } catch (e) { showError("starting the page", e); }
 })();

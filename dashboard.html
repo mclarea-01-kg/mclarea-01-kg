@@ -30,11 +30,13 @@
 
   <main class="wrap">
     <div id="error-area" role="alert"></div>
+    <div id="source-banner" role="status"></div>
 
     <div class="toolbar">
       <button class="btn filter-toggle" id="filter-toggle" type="button" aria-expanded="false" aria-controls="sidebar">Filters</button>
-      <span class="live-pill" id="live-pill" title="Simulated live feed. New made-up readings arrive while this page is open."><span class="dot"></span><span id="live-text">Live: on</span></span>
+      <span class="live-pill" id="live-pill" title="Shows whether new readings from the database reach this page live"><span class="dot"></span><span id="live-text">Live: on</span></span>
       <span class="spacer"></span>
+      <button class="btn primary" id="btn-add" type="button">Add reading</button>
       <button class="btn" id="btn-alerts" type="button">Alerts <span class="count" id="alert-count">0</span></button>
       <button class="btn" id="btn-custom" type="button">Customize</button>
     </div>
@@ -134,11 +136,11 @@
   <!-- ALERTS DRAWER -->
   <aside class="drawer" id="drawer-alerts" role="dialog" aria-modal="true" aria-labelledby="da-title" hidden>
     <div class="drawer-head"><h2 id="da-title">Live Alerts</h2><button class="btn" type="button" data-close>Close</button></div>
-    <p class="note">Simulated live feed: made-up readings arrive while this page is open. Alerts use your thresholds from Customize.</p>
+    <p class="note" id="al-note"></p>
     <div class="drawer-tools">
       <button class="btn" id="al-ack" type="button">Acknowledge all</button>
       <button class="btn" id="al-clear" type="button">Clear list</button>
-      <button class="btn" id="al-test" type="button">Send test alert</button>
+      <button class="btn" id="al-test" type="button">Send test reading</button>
     </div>
     <div id="alert-list"></div>
   </aside>
@@ -154,7 +156,7 @@
     <div class="fld"><label for="c-price">Diesel price (&#8377; per litre)</label><input type="number" id="c-price" min="1" max="500" step="0.5"></div>
     <h3>Live feed</h3>
     <label class="check"><input type="checkbox" id="c-live"> Live feed on</label>
-    <div class="fld"><label for="c-interval">New reading every</label>
+    <div class="fld"><label for="c-interval">Check for new readings every</label>
       <select id="c-interval"><option value="10">10 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option><option value="300">5 minutes</option></select></div>
     <label class="check"><input type="checkbox" id="c-toasts"> Pop-up alerts</label>
     <label class="check"><input type="checkbox" id="c-sound"> Beep on critical alerts</label>
@@ -172,6 +174,23 @@
     <button class="btn block" id="c-reset" type="button" style="margin-top:14px">Reset all settings</button>
   </aside>
 
+  <!-- ADD READING DRAWER -->
+  <aside class="drawer" id="drawer-add" role="dialog" aria-modal="true" aria-labelledby="dad-title" hidden>
+    <div class="drawer-head"><h2 id="dad-title">Add a fuel reading</h2><button class="btn" type="button" data-close>Close</button></div>
+    <p class="note" id="add-note">One reading = one vehicle, one shift. Use made-up values only.</p>
+    <form id="add-form" novalidate>
+      <div class="fld two"><div><label for="a-date">Date</label><input type="date" id="a-date" required></div><div><label for="a-shift">Shift</label><select id="a-shift"><option>A Shift</option><option>B Shift</option><option>C Shift</option></select></div></div>
+      <div class="fld"><label for="a-no">Vehicle no.</label><input type="text" id="a-no" list="dl-no" maxlength="20" autocomplete="off" placeholder="e.g. HD-05" required><datalist id="dl-no"></datalist></div>
+      <div class="fld"><label for="a-type">Vehicle type</label><select id="a-type"></select></div>
+      <div class="fld two"><div><label for="a-mine">Mine</label><input type="text" id="a-mine" list="dl-mine" maxlength="30" autocomplete="off" placeholder="e.g. Mine A" required><datalist id="dl-mine"></datalist></div><div><label for="a-siding">Siding</label><input type="text" id="a-siding" list="dl-siding" maxlength="30" autocomplete="off" placeholder="e.g. Siding 1" required><datalist id="dl-siding"></datalist></div></div>
+      <div class="fld two"><div><label for="a-exp">Expected (L)</label><input type="number" id="a-exp" min="1" step="any" inputmode="decimal" required></div><div><label for="a-act">Actual (L)</label><input type="number" id="a-act" min="0" step="any" inputmode="decimal" required></div></div>
+      <div class="fld two"><div><label for="a-km">Distance (km)</label><input type="number" id="a-km" min="0" step="any" inputmode="decimal"></div><div><label for="a-flag">Flag</label><select id="a-flag"><option value="">None</option><option>Refueling Irregularity</option><option>Mileage Mismatch</option><option>Other</option></select></div></div>
+      <p class="preview" id="a-preview" aria-live="polite">Enter expected and actual litres to see the result.</p>
+      <div id="a-msg" role="status"></div>
+      <button class="btn primary big" type="submit" id="a-save">Save reading</button>
+    </form>
+  </aside>
+
   <!-- RECORD DIALOG -->
   <div class="overlay" id="rec-modal" role="dialog" aria-modal="true" aria-labelledby="rec-title">
     <div class="dialog" style="max-width:640px">
@@ -181,6 +200,9 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <!-- overview-data.js is only the built-in sample data, used if the database cannot be read -->
   <script src="overview-data.js"></script>
   <script src="overview.js"></script>
 </body>

@@ -75,7 +75,7 @@
 - Tool name: Diesel Exception & Fuel Consumption Monitoring Dashboard
 - Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
 - Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
-- Table name and columns: diesel_exceptions (database/01-setup.sql): id, created_at, record_date, equipment_type, equipment_no, operator_id, shift, norm_litres, actual_litres, fuel_point, inspection_status, action_required, remarks. Litres above norm = actual - norm (worked out, not stored).
+- Table name and columns: fuel_readings (database/02-fuel-readings.sql): id, created_at, reading_date, mine, siding, vehicle_type, vehicle_no, shift, expected_litres, actual_litres, km, exception_flag, status. Litres above/below expected = actual - expected (worked out, not stored). The older table diesel_exceptions (01-setup.sql) is NOT used any more and is left untouched.
 - Pages: index.html = home; dashboard.html = dashboard (code in overview.js, data in overview-data.js, extra styles overview.css; shared look in style.css).
 
 ## Progress Log (newest entry at the bottom)
@@ -121,3 +121,16 @@
   Tested in a local browser only. Next: decide whether Overview replaces Dashboard, and whether
   to connect it to Supabase for real alerts (needs new columns: mine, siding, vehicle type, km).
 - Old dashboard removed (Claude, on request): deleted the old dashboard.html and dashboard.js (forecast/fuel-point version is still in git history, last at commit e51f4a4^). The Overview page was renamed to dashboard.html, so links to dashboard.html now open it; overview.html no longer exists. Home page questions rewritten. sample-data.js is unused by pages (only the source of the SQL sample rows).
+- Phase 6 (Claude): dashboard.html is connected to the database for real alerts. NEW database/02-fuel-readings.sql
+  (table fuel_readings, security rules, grant, live-update switch, ~3,200 made-up sample rows created by the
+  database itself, only if the table is empty; safe to run twice). Tested on a throwaway local Postgres only, NOT on
+  our Supabase. The dashboard reads all rows, listens for new rows (Supabase Realtime) and also checks every 10 s to
+  5 min as a back-up; a new reading that breaks the alert rules (Customize) raises a pop-up, the Alerts count and the
+  Alerts list on EVERY open dashboard. New "Add reading" button (form in a side panel) saves a reading; status
+  changes made in the record window are saved to the database. If the database cannot be read (e.g. SQL not run yet)
+  the page falls back to DEMO MODE (built-in sample data, simulated feed) with an amber banner showing the real
+  error text. Alert rules, price, layout choices and saved views are still per browser (localStorage).
+  Known: needs 02-fuel-readings.sql run by the Data Keeper; anyone with the link can add/update readings (no
+  login, by design); alerts are not sent to phones when the page is closed (that needs a server, later).
+  Next: Data Keeper runs 02 file; test with two devices; decide about SMS/e-mail alerts.
+
