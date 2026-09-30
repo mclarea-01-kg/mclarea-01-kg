@@ -109,3 +109,14 @@
   put mcl-logo.png (Mahanadi Coalfields) and coal-india-logo.png (Coal India) there; until then the
   header shows the company names as text. Official logo files must be supplied by the team.
 - Logo (Claude, on request): the team's combined Coal India + MCL picture is saved as images/logo.jpg and shown in the header of index.html and dashboard.html (text fallback if missing). Replaces the two separate logo slots.
+- Overview page (Claude, on request): NEW third page overview.html (files overview.css, overview.js,
+  overview-data.js) built from the team's picture: filters sidebar, 4 KPI cards, trend, exceptions by
+  type / mine, efficiency and consumption by vehicle type, top 5 locations, exception details, key
+  insights and recommended actions. No fuel-point / fuel-station part. Customize panel (alert
+  thresholds, fuel price, live feed on/off and interval, sound, pop-ups, chart grouping, hide/show
+  sections, saved filter views) and an Alerts panel. Everything is saved in the browser only.
+  Data is separate made-up sample data (mines A-E, sidings, vehicles, km) - NOT the database.
+  "Live" alerts are SIMULATED in the page (new made-up readings on a timer); real live alerts need
+  the database (later phase). The older dashboard.html is unchanged (it still has fuel-point analysis).
+  Tested in a local browser only. Next: decide whether Overview replaces Dashboard, and whether
+  to connect it to Supabase for real alerts (needs new columns: mine, siding, vehicle type, km).
