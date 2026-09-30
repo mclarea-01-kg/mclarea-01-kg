@@ -46,7 +46,7 @@
       return {
         date: String(r.record_date).slice(0, 10), type: r.equipment_type, eq: r.equipment_no, operator: r.operator_id, shift: r.shift,
         norm: Number(r.norm_litres), actual: Number(r.actual_litres), fuelPoint: r.fuel_point, status: r.inspection_status,
-        action: r.action_required, remarks: r.remarks || ""
+        action: r.action_required, remarks: r.remarks || "", createdAt: r.created_at || ""
       };
     });
     window.DIESEL_SOURCE_NOTE = "Loaded " + rows.length + " records from the database.";

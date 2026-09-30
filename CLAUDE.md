@@ -111,4 +111,13 @@
   Known: needs 01-setup.sql to have been run, otherwise the dashboard shows a red message with
   the error text. Action Panel requests (inspection / retrain / lock) are still saved only in
   the browser, not in the database. Next: test live; decide whether to store those requests.
+- Phase 5 (Claude): business-analyst checks added to dashboard.html. Money: diesel price box
+  (made-up default 95 rupees per litre, saved in the browser, NOT in the database) drives 4 cost
+  cards, an "Excess cost" column in the tables/CSV and cost lines in the forecast. Safety: 6
+  safety signals (open inspections on Critical/High machines, back-to-back shifts, no retraining
+  recorded, several operators on one machine, shift concentration, fuel points) and an ageing
+  table. 6 data-quality checks (duplicates, one operator on two machines, extreme entries, late
+  entry, No Action on large exception, closed without remark). Tested with a stand-in database.
+  Known: these are indirect signals, not proof. Sample rows show as "late" because they were
+  loaded together. Next: real diesel price; optionally add trips and hour-meter columns.
 

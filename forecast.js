@@ -12,6 +12,7 @@
 
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function num(n) { return Math.round(n).toLocaleString("en-IN"); }
+  function rs(n) { return "\u20B9" + Math.round(n).toLocaleString("en-IN"); }
   function pct(r) { return Math.round(r * 100) + "%"; }
   function sum(a, f) { var t = 0; a.forEach(function (x) { t += f(x); }); return t; }
   function badge(cls, t) { return '<span class="badge ' + cls + '">' + esc(t) + "</span>"; }
@@ -100,6 +101,7 @@
       var tps = Math.min(60, Math.max(1, parseFloat($("fc-trips").value) || 18));
       $("fc-sub").textContent = "Forecast for " + monthName + " (" + daysNext + " days), built from the last " + WINDOW + " days of records. It does not follow the filters above.";
       if (!recs.length) { $("fc-kpis").innerHTML = ""; ["t-fc-machine", "t-fc-op", "t-fc-trips"].forEach(function (id) { $(id).innerHTML = '<div class="empty-msg">No records to forecast from.</div>'; }); return; }
+      var P = window.DIESEL_PRICE || 95;
       var m = model(activity, tps), mc = m.machines;
       var approved = sum(mc, function (x) { return x.approved; }), exp = sum(mc, function (x) { return x.expL; });
       var best = sum(mc, function (x) { return x.bestL; }), worst = sum(mc, function (x) { return x.worstL; });
@@ -109,8 +111,8 @@
       var retrain = m.ops.filter(function (o) { return o.lvl === 3; }).length, counsel = m.ops.filter(function (o) { return o.lvl === 2; }).length;
 
       $("fc-kpis").innerHTML =
-        kpi("Forecast diesel – " + esc(MON[nm]), num(exp) + " <small>L</small>", over >= 0.15 ? "crit" : over >= 0.05 ? "warn" : "ok", "Range " + num(best) + " to " + num(worst) + " L · approved (norm) " + num(approved) + " L") +
-        kpi("Expected excess over norm", num(exp - approved) + " <small>L</small>", over >= 0.15 ? "crit" : over >= 0.05 ? "warn" : "ok", pct(Math.max(0, over)) + " above the approved diesel") +
+        kpi("Forecast diesel – " + esc(MON[nm]), num(exp) + " <small>L</small>", over >= 0.15 ? "crit" : over >= 0.05 ? "warn" : "ok", "Range " + num(best) + " to " + num(worst) + " L · approved (norm) " + num(approved) + " L · cost about " + rs(exp * P) + " vs budget " + rs(approved * P)) +
+        kpi("Expected excess over norm", num(exp - approved) + " <small>L</small>", over >= 0.15 ? "crit" : over >= 0.05 ? "warn" : "ok", pct(Math.max(0, over)) + " above approved \u00B7 extra cost about " + rs((exp - approved) * P) + " (best case " + rs(Math.max(0, best - approved) * P) + ", worst " + rs((worst - approved) * P) + ")") +
         kpi("Operators needing action", retrain + counsel, retrain > 0 ? "crit" : counsel > 0 ? "warn" : "ok", retrain + " retrain · " + counsel + " counsel · " + (m.ops.length - retrain - counsel) + " monitor") +
         kpi("Dumper trips lost to excess diesel", num(lost), planned && lost / planned >= 0.1 ? "crit" : lost > 0 ? "warn" : "ok", num(can) + " trips possible of " + num(planned) + " planned (" + num(tps) + " per shift)");
 
@@ -162,5 +164,6 @@
   }
 
   ["fc-activity", "fc-trips"].forEach(function (id) { $(id).addEventListener("input", render); });
+  window.DIESEL_FC_RENDER = render;
   render();
 })();
