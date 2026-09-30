@@ -229,3 +229,13 @@ details.box li { margin: 3px 0; }
   body { background: #fff; }
 }
 [hidden] { display: none !important; }
+
+/* ---------- entry form ---------- */
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 14px; }
+.form-grid .wide { grid-column: 1 / -1; }
+.preview { margin: 14px 0 0; padding: 10px 12px; border-radius: 8px; background: #f6f8f9; border: 1px solid var(--line); font-weight: 600; }
+.preview.bad { background: var(--warn-bg); color: var(--warn); border-color: #e6cf85; }
+.preview.good { background: var(--ok-bg); color: var(--ok); border-color: #a9d4b0; }
+.btn.big { margin-top: 14px; min-height: 52px; font-size: 17px; padding: 10px 32px; }
+@media (max-width: 860px) { .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .form-grid { grid-template-columns: minmax(0, 1fr); } .btn.big { width: 100%; } }

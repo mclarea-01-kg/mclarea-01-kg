@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add Diesel Record</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap head-row">
+      <div class="brand">
+        <h1>Diesel Exception &amp; Fuel Consumption Monitoring Dashboard</h1>
+        <p>Open Cast Coal Mine &ndash; Weekly Fuel Exception Analysis</p>
+      </div>
+      <nav class="menu" aria-label="Main menu">
+        <a href="index.html">Home</a>
+        <a href="entry.html" aria-current="page">Add Record</a>
+        <a href="dashboard.html">Dashboard</a>
+      </nav>
+    </div>
+  </header>
+  <div class="sample-bar"><div class="wrap"><strong>Illustrative / Sample Data.</strong> Enter made-up values only. Never type real names, employee IDs or real MCL figures.</div></div>
+
+  <main class="wrap">
+    <div id="error-area" role="alert"></div>
+
+    <section class="card">
+      <h2>Add a Diesel Record</h2>
+      <p class="sub">One record = one machine, one shift. If actual diesel is above the norm, it is an exception.</p>
+      <form id="entry-form" novalidate>
+        <div class="form-grid">
+          <div class="field"><label for="e-date">Date</label><input type="date" id="e-date" required></div>
+          <div class="field"><label for="e-shift">Shift</label>
+            <select id="e-shift" required><option value="">Choose shift</option><option>A Shift</option><option>B Shift</option><option>C Shift</option></select></div>
+          <div class="field"><label for="e-type">Equipment type</label>
+            <select id="e-type" required><option value="">Choose type</option><option>Dumper</option><option>Shovel</option><option>Dozer</option><option>Loader</option><option>Other</option></select></div>
+          <div class="field"><label for="e-eq">Equipment number</label><input type="text" id="e-eq" list="eq-list" placeholder="e.g. DT-01" maxlength="20" autocomplete="off" required><datalist id="eq-list"></datalist></div>
+          <div class="field"><label for="e-op">Operator ID</label><input type="text" id="e-op" list="op-list" placeholder="e.g. OP-101 (made-up ID)" maxlength="20" autocomplete="off" required><datalist id="op-list"></datalist></div>
+          <div class="field"><label for="e-fp">Fuel issue point</label>
+            <input type="text" id="e-fp" list="fp-list" placeholder="e.g. Fuel Point-01" maxlength="30" autocomplete="off" required>
+            <datalist id="fp-list"><option value="Fuel Point-01"><option value="Fuel Point-02"><option value="Fuel Point-03"><option value="Fuel Point-04"></datalist></div>
+          <div class="field"><label for="e-norm">Norm diesel (litres)</label><input type="number" id="e-norm" inputmode="decimal" min="0" step="any" required></div>
+          <div class="field"><label for="e-actual">Actual diesel (litres)</label><input type="number" id="e-actual" inputmode="decimal" min="0" step="any" required></div>
+          <div class="field"><label for="e-status">Inspection status</label>
+            <select id="e-status" required><option>Pending</option><option>Under Inspection</option><option>Closed</option></select></div>
+          <div class="field"><label for="e-action">Action required</label>
+            <select id="e-action" required><option>Inspect Machine</option><option>Retrain Operator</option><option>Check Fuel Issue</option><option>Maintenance Check</option><option>No Action</option></select></div>
+          <div class="field wide"><label for="e-remarks">Remarks (optional)</label><input type="text" id="e-remarks" maxlength="200" placeholder="Short note"></div>
+        </div>
+        <p class="preview" id="preview" aria-live="polite">Enter norm and actual litres to see the result.</p>
+        <div id="form-msg" role="status"></div>
+        <button class="btn primary big" type="submit" id="save-btn">Save record</button>
+      </form>
+    </section>
+
+    <div class="section-label">Latest saved records</div>
+    <section class="card">
+      <h2>Recently saved</h2>
+      <p class="sub">Read back from the database, newest first. This confirms that saving works.</p>
+      <div id="t-recent"><div class="empty-msg">Loading...</div></div>
+    </section>
+  </main>
+
+  <div class="wrap site-footer">Illustrative / Sample Data &ndash; made up for training. Not real MCL figures.</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="entry.js"></script>
+</body>
+</html>

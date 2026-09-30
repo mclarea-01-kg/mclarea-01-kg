@@ -75,8 +75,8 @@
 - Tool name: Diesel Exception & Fuel Consumption Monitoring Dashboard
 - Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
 - Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
-- Table name and columns: NONE YET. Phase 2 uses made-up records in sample-data.js (date, type, eq, operator, shift, norm, actual, fuelPoint, status, action, remarks). Litres above norm = actual - norm (worked out, not stored).
-- Pages: index.html = entry page; dashboard.html = dashboard (all logic in dashboard.js, look in style.css)
+- Table name and columns: diesel_exceptions (database/01-setup.sql): id, created_at, record_date, equipment_type, equipment_no, operator_id, shift, norm_litres, actual_litres, fuel_point, inspection_status, action_required, remarks. Litres above norm = actual - norm (worked out, not stored).
+- Pages: index.html = home; entry.html = Add Record form (entry.js); dashboard.html = dashboard (dashboard.js). Look for all pages in style.css.
 
 ## Progress Log (newest entry at the bottom)
 - Phase 0 (starter): placeholder index.html, config.js without settings and
@@ -90,3 +90,10 @@
   Known: charts need the jsDelivr CDN (a friendly error shows if blocked). The plain
   HTML/JS rule was followed, so no React/Tailwind. Next: test on the live site, then
   decide whether to store records in Supabase (would need database/01-setup.sql).
+- Phase 3 (Claude): wrote database/01-setup.sql (table, security rules, grant, 62 made-up
+  sample rows added only if the table is empty) and the Add Record page (entry.html,
+  entry.js) with live "litres above norm" preview and a "recently saved" list. Menu on
+  all pages now has Add Record. Tested only with a stand-in database, NOT the real one.
+  Known: the dashboard still reads sample-data.js, not the database. Next: Data Keeper
+  runs 01-setup.sql; test saving on the live site; then Phase 4 = dashboard reads the
+  database.
