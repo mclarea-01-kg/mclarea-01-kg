@@ -71,13 +71,22 @@
   commit and push.
 
 ## Our tool (filled in during Phase 1)
-- Team:
-- Tool name:
-- Problem:
-- Who records / who decides:
-- Table name and columns:
-- Pages: index.html = entry page; dashboard.html = dashboard
+- Team: MCL team, IIM Sambalpur MDP
+- Tool name: Diesel Exception & Fuel Consumption Monitoring Dashboard
+- Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
+- Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
+- Table name and columns: NONE YET. Phase 2 uses made-up records in sample-data.js (date, type, eq, operator, shift, norm, actual, fuelPoint, status, action, remarks). Litres above norm = actual - norm (worked out, not stored).
+- Pages: index.html = entry page; dashboard.html = dashboard (all logic in dashboard.js, look in style.css)
 
 ## Progress Log (newest entry at the bottom)
 - Phase 0 (starter): placeholder index.html, config.js without settings and
   this CLAUDE.md. Next: Phase 1 - the table and the entry page.
+- Phase 2 (Claude): built index.html, dashboard.html, dashboard.js, style.css, sample-data.js.
+  Works: filters, 5 KPI cards, charts (Chart.js), repeat machines, inspection priority
+  with a written points rule, operator retraining, fuel point analysis, fuel control
+  actions, management action box, action panel (demo only, saved in the browser),
+  drill-down, sortable/searchable detail table, CSV download. Tested in a local browser
+  only, with sample data. The database is NOT connected; no SQL written yet.
+  Known: charts need the jsDelivr CDN (a friendly error shows if blocked). The plain
+  HTML/JS rule was followed, so no React/Tailwind. Next: test on the live site, then
+  decide whether to store records in Supabase (would need database/01-setup.sql).

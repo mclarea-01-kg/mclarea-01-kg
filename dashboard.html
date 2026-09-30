@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Diesel Exception Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap head-row">
+      <div class="brand">
+        <h1>Diesel Exception &amp; Fuel Consumption Monitoring Dashboard</h1>
+        <p>Open Cast Coal Mine &ndash; Weekly Fuel Exception Analysis</p>
+      </div>
+      <nav class="menu" aria-label="Main menu">
+        <a href="index.html">Home</a>
+        <a href="dashboard.html" aria-current="page">Dashboard</a>
+      </nav>
+    </div>
+  </header>
+  <div class="sample-bar"><div class="wrap"><strong>Illustrative / Sample Data.</strong> All machines, operators and litres shown are made up for demonstration. <span id="asof"></span></div></div>
+
+  <main class="wrap">
+    <div id="error-area" role="alert"></div>
+
+    <!-- FILTER BAR -->
+    <section class="filters" aria-label="Filters">
+      <div class="filter-grid">
+        <div class="field"><label for="f-preset">Period</label>
+          <select id="f-preset">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="month">Current month</option>
+            <option value="custom">Custom date range</option>
+          </select></div>
+        <div class="field"><label for="f-from">From</label><input type="date" id="f-from"></div>
+        <div class="field"><label for="f-to">To</label><input type="date" id="f-to"></div>
+        <div class="field"><label for="f-type">Equipment type</label><select id="f-type"></select></div>
+        <div class="field"><label for="f-eq">Equipment no.</label><select id="f-eq"></select></div>
+        <div class="field"><label for="f-op">Operator</label><select id="f-op"></select></div>
+        <div class="field"><label for="f-shift">Shift</label><select id="f-shift"></select></div>
+        <div class="field"><label for="f-fp">Fuel issue point</label><select id="f-fp"></select></div>
+        <div class="field"><label for="f-status">Inspection status</label><select id="f-status"></select></div>
+        <div class="field"><label for="f-priority">Priority</label><select id="f-priority"></select></div>
+        <div class="field"><button class="btn block" id="f-reset" type="button">Reset filters</button></div>
+      </div>
+      <p class="scope" id="scope"></p>
+    </section>
+
+    <!-- KPI ROW -->
+    <div class="section-label">Key numbers</div>
+    <section class="kpis" id="kpis" aria-label="Key performance indicators"></section>
+
+    <!-- MAIN ANALYSIS -->
+    <div class="section-label">Main analysis</div>
+    <section class="grid g2">
+      <div class="card">
+        <h2>Litres Above Norm by Equipment Type</h2>
+        <p class="sub">Click a bar to see the records behind it.</p>
+        <p class="callout" id="type-callout"></p>
+        <div class="chart-box"><canvas id="ch-type" role="img" aria-label="Bar chart of litres above norm by equipment type"></canvas><div class="empty-msg" id="empty-type" hidden></div></div>
+      </div>
+      <div class="card">
+        <h2>Diesel Exceptions &ndash; Weekly Trend</h2>
+        <p class="sub" id="trend-sub">Number of exceptions and litres above norm over the selected period.</p>
+        <p class="callout" id="trend-callout"></p>
+        <div class="chart-box"><canvas id="ch-trend" role="img" aria-label="Line chart of number of exceptions and litres above norm over time"></canvas><div class="empty-msg" id="empty-trend" hidden></div></div>
+      </div>
+    </section>
+
+    <!-- OPERATIONAL ANALYSIS -->
+    <div class="section-label">Operational analysis</div>
+    <section class="grid g2">
+      <div class="card">
+        <h2>Repeat Exception Machines</h2>
+        <p class="sub">Machines with 2 or more exception records in the selected period.</p>
+        <div id="t-repeat"></div>
+      </div>
+      <div class="card">
+        <h2>Machines Requiring Inspection</h2>
+        <p class="sub">Ranked automatically with the points rule below.</p>
+        <details class="box" open>
+          <summary>How priority is decided (transparent rule)</summary>
+          <ul>
+            <li><strong>Litres above norm:</strong> +2 if total is 300 L or more, or any single exception is 150 L or more; +1 if total is 150 L or more.</li>
+            <li><strong>Repeat exceptions:</strong> +2 for 3 or more exceptions; +1 for 2 exceptions.</li>
+            <li><strong>Sudden increase:</strong> +1 if the latest exception is at least 1.3 times the average of the earlier ones.</li>
+            <li><strong>Continuous across shifts:</strong> +1 if two exceptions fall in back-to-back shifts (A&rarr;B, B&rarr;C, C&rarr;next day A).</li>
+            <li><strong>Open for several days:</strong> +1 if any exception is still Pending / Under Inspection for 3 or more days.</li>
+            <li><strong>Priority:</strong> Critical = 6&ndash;7 points, High = 4&ndash;5, Medium = 2&ndash;3, Low = 0&ndash;1.</li>
+          </ul>
+        </details>
+        <label class="check"><input type="checkbox" id="show-low"> Also show Low priority machines</label>
+        <div id="t-inspect"></div>
+      </div>
+    </section>
+
+    <!-- CONTROL ANALYSIS -->
+    <div class="section-label">Control analysis</div>
+    <section class="grid g2">
+      <div class="card">
+        <h2>Operator Retraining</h2>
+        <p class="sub">Rule: 3+ exceptions or 300+ L = Retrain; 2 exceptions or 150+ L = Counsel; otherwise Monitor. If the machine also shows exceptions under other operators, inspect the machine first.</p>
+        <div id="t-operator"></div>
+      </div>
+      <div class="card">
+        <h2>Excess Consumption by Fuel Issue Point</h2>
+        <p class="sub">Rule: 35% or more of all excess litres = Tighten control; 25% or more = Watch.</p>
+        <div class="chart-box short"><canvas id="ch-fp" role="img" aria-label="Bar chart of excess litres by fuel issue point"></canvas><div class="empty-msg" id="empty-fp" hidden></div></div>
+        <div id="t-fp" style="margin-top:12px"></div>
+      </div>
+    </section>
+
+    <div class="section-label">Fuel controls</div>
+    <section class="card">
+      <h2>Fuel Control Actions</h2>
+      <p class="sub">Standing control checks. "Act now" appears when the current data gives a reason.</p>
+      <div class="ctrl-grid" id="controls"></div>
+    </section>
+
+    <!-- MANAGEMENT ACTION -->
+    <div class="section-label">Management action</div>
+    <section class="grid g-side">
+      <div class="mgmt" aria-labelledby="mgmt-h">
+        <h2 id="mgmt-h">MANAGEMENT ACTION REQUIRED</h2>
+        <p class="sub">Written automatically from the records in the current view.</p>
+        <ol class="act-list" id="mgmt-list"></ol>
+        <p class="disclaimer"><strong>Please note:</strong> these are decision-support suggestions based on recorded exceptions. They are not accusations of fuel misuse.</p>
+      </div>
+      <div class="card">
+        <h2>Action Panel</h2>
+        <p class="sub">For Fuel and E&amp;M Managers.</p>
+        <div class="panel-fields">
+          <div class="field"><label for="ap-eq">Machine</label><select id="ap-eq"></select></div>
+          <div class="field"><label for="ap-date">Inspection date</label><input type="date" id="ap-date"></div>
+          <div class="field"><label for="ap-op">Operator</label><select id="ap-op"></select></div>
+        </div>
+        <div class="panel-btns">
+          <button class="btn primary" id="ap-inspect" type="button">Schedule Mechanical Inspection</button>
+          <button class="btn amber" id="ap-retrain" type="button">Flag Operator for Retraining</button>
+        </div>
+        <p class="note">Inspection: check engine and look for leaks. Retraining: fix excessive idling.</p>
+        <div class="lock-row">
+          <div><strong>Lock Fuel Dispenser</strong><span>Block refuelling for unapproved repeat exceptions</span></div>
+          <label class="switch"><input type="checkbox" id="ap-lock" role="switch" aria-label="Lock fuel dispenser for the selected machine"><span class="track"></span></label>
+        </div>
+        <div id="ap-msg" role="status"></div>
+        <p class="note"><strong>Demo only:</strong> requests are saved in this browser. No real dispenser or maintenance system is changed.</p>
+        <h3 style="font-size:14px;margin-top:12px">Recent requests</h3>
+        <ul class="log" id="ap-log"></ul>
+      </div>
+    </section>
+
+    <!-- DETAIL TABLE -->
+    <div class="section-label">Detail records</div>
+    <section class="card">
+      <h2>Complete Exception Records</h2>
+      <p class="sub">Uses all filters above. Click a heading to sort. Click an equipment number, operator or fuel point to drill down.</p>
+      <div class="tools">
+        <div class="field"><label for="d-search">Search</label><input type="search" id="d-search" placeholder="Equipment, operator, fuel point, remarks..."></div>
+        <label class="check"><input type="checkbox" id="d-normal"> Include within-norm records</label>
+        <button class="btn" id="d-csv" type="button">Download CSV</button>
+      </div>
+      <div id="t-detail"></div>
+    </section>
+
+    <!-- DEFINITIONS -->
+    <div class="section-label">Reference</div>
+    <section class="card">
+      <h2>Metric Definitions</h2>
+      <dl class="defs">
+        <div><dt>Litres Above Norm</dt><dd>Actual diesel consumption minus norm diesel consumption. Only positive differences count as exceptions.</dd></div>
+        <div><dt>Open Exceptions</dt><dd>Exception records whose Inspection Status is Pending or Under Inspection.</dd></div>
+        <div><dt>Repeat Exception Machine</dt><dd>A machine with 2 or more exception records in the selected period.</dd></div>
+        <div><dt>Total Excess Litres</dt><dd>Sum of litres above norm for all exception records.</dd></div>
+        <div><dt>Average Excess per Exception</dt><dd>Total excess litres divided by the number of exception records.</dd></div>
+        <div><dt>Highest Exception</dt><dd>The single exception record with the largest litres above norm.</dd></div>
+        <div><dt>Status labels on the key numbers</dt><dd>
+          Open exceptions: Warning at 3+, Critical at 8+.<br>
+          Litres above norm (per 7 days): Warning at 250+ L, Critical at 500+ L.<br>
+          Repeat machines: Warning at 1+, Critical at 5+.<br>
+          Highest exception: Warning at 80+ L, Critical at 150+ L.<br>
+          Average excess: Warning at 50+ L, Critical at 90+ L.</dd></div>
+        <div><dt>"Now" in this dashboard</dt><dd id="def-asof">The latest date in the data.</dd></div>
+      </dl>
+    </section>
+  </main>
+
+  <div class="wrap site-footer">Illustrative / Sample Data &ndash; made up for training. Not real MCL figures.</div>
+
+  <!-- DRILL-DOWN -->
+  <div class="overlay" id="drill" role="dialog" aria-modal="true" aria-labelledby="drill-title">
+    <div class="dialog">
+      <div class="dialog-head">
+        <div><h2 id="drill-title"></h2><p class="sub" id="drill-sub" style="margin:4px 0 0"></p></div>
+        <button class="btn" id="drill-close" type="button">Close</button>
+      </div>
+      <div class="sum-row" id="drill-sum"></div>
+      <div id="t-drill"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="sample-data.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>
