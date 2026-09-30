@@ -48,17 +48,21 @@
   var overrides = load("mclOverviewStatus", {});   // demo mode only; real statuses live in the database
   var views = load("mclOverviewViews", []);
 
+  var USER = window.MCLUser || { can: function () { return true; }, label: function () { return "Guest"; }, roleDesc: function () { return ""; }, onChange: function () {}, get: function () { return { name: "Guest", role: "Viewer" }; } };
+  function who() { return USER.label(); }
+  var hasAudit = null;   // null = unknown, true/false once we know whether the audit columns (03 SQL file) exist
   var MODE = "demo", db = null, channel = null, pollTimer = null, lastCreated = "", connState = "demo", dbIds = {};
   var records = [], machines = [], mineList = [], sidingList = [], typeList = TYPE_ORDER.slice();
   var DATA_MIN = 0, DATA_MAX = 0;
   function todayLocal() { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
   function makeRec(o) {
     return { id: records.length, date: o.date, day: dayNum(o.date), no: o.no, vtype: o.vtype, mine: o.mine, siding: o.siding, shift: o.shift, exp: o.exp, act: o.act, km: o.km,
-      flag: Math.max(0, FLAGS.indexOf(o.flag || "")), status: o.status, dbId: o.dbId || null, live: !!o.live };
+      flag: Math.max(0, FLAGS.indexOf(o.flag || "")), status: o.status, dbId: o.dbId || null, live: !!o.live, enteredBy: o.enteredBy || "", updatedBy: o.updatedBy || "", updatedAt: o.updatedAt || "" };
   }
   function recFromDb(row) {
     return makeRec({ date: String(row.reading_date).slice(0, 10), vtype: row.vehicle_type, no: row.vehicle_no, mine: row.mine, siding: row.siding, shift: row.shift,
-      exp: Number(row.expected_litres), act: Number(row.actual_litres), km: Number(row.km), flag: row.exception_flag, status: row.status, dbId: row.id });
+      exp: Number(row.expected_litres), act: Number(row.actual_litres), km: Number(row.km), flag: row.exception_flag, status: row.status, dbId: row.id,
+      enteredBy: row.entered_by, updatedBy: row.updated_by, updatedAt: row.updated_at });
   }
   function loadDemo() {
     records = [];
@@ -423,8 +427,15 @@
       ["Variance", (v > 0 ? "+" : "") + num(v) + " L (" + (d > 0 ? "+" : "") + num1(d) + "%)"], ["Distance", num(r.km) + " km"], ["Efficiency", (r.km / r.act).toFixed(2) + " km/l"],
       ["Exception type", t || "Within limits"], ["Cost of excess", v > 0 ? rs(v * S.price) : "₹0"], ["Record", MODE === "db" ? "Saved in the database" : (r.live ? "Simulated live reading" : "Sample record")]];
     var h = '<dl class="rec-grid">' + rows.map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("") + "</dl>";
-    h += '<div class="fld"><label for="rec-status">Status</label><select id="rec-status">' + STATUSES.map(function (s) { return '<option' + (s === statusOf(r) ? " selected" : "") + ">" + s + "</option>"; }).join("") + '</select></div>';
-    h += '<button class="btn primary" id="rec-save" type="button" data-id="' + id + '">Save status</button><p class="note">'+(MODE === "db" ? "Saved in the database for everyone." : "Demo mode: saved in this browser only.")+'</p>';
+    var hist = "";
+    if (r.enteredBy) hist += "Entered by " + esc(r.enteredBy) + ". ";
+    if (r.updatedBy) hist += "Status last changed by " + esc(r.updatedBy) + (r.updatedAt ? " on " + esc(new Date(r.updatedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })) : "") + ".";
+    if (hist) h += '<p class="note" style="margin:0 0 10px">' + hist + "</p>";
+    var canSt = USER.can("status");
+    if (!canSt) h += '<p class="perm-note">Your role (' + esc(USER.get().role) + ') cannot change the status. Switch role with your name at the top right.</p>';
+    h += '<div class="fld"><label for="rec-status">Status</label><select id="rec-status"' + (canSt ? "" : " disabled") + '>' + STATUSES.map(function (s) { return '<option' + (s === statusOf(r) ? " selected" : "") + ">" + s + "</option>"; }).join("") + '</select></div>';
+    if (canSt) h += '<button class="btn primary" id="rec-save" type="button" data-id="' + id + '">Save status</button>';
+    h += '<p class="note">' + (MODE === "db" ? "Saved in the database for everyone." : "Demo mode: saved in this browser only.") + "</p>";
     $("rec-body").innerHTML = h;
     if (!$("rec-modal").classList.contains("open")) recOpener = document.activeElement;
     $("rec-modal").classList.add("open"); $("rec-close").focus();
@@ -451,7 +462,7 @@
     return r.no + " (" + r.vtype + ") at " + r.mine + " – " + r.siding + ": " + r._t + ", " + (d > 0 ? "+" : "") + num1(d) + "% (" + (v > 0 ? "+" : "") + num(v) + " L vs expected " + num(r.exp) + " L)";
   }
   function addAlert(r, fresh) {
-    var a = { id: alertSeq++, rec: r.id, sev: severity(r), text: alertText(r), when: fresh ? new Date() : null, label: fresh ? "" : "Recorded " + fmtShort(r.date), acked: false };
+    var a = { id: alertSeq++, rec: r.id, sev: severity(r), text: alertText(r), when: fresh ? new Date() : null, label: fresh ? "" : "Recorded " + fmtShort(r.date), acked: false, ackBy: "", by: r.enteredBy || "" };
     alerts.unshift(a); if (alerts.length > 60) alerts.pop();
     return a;
   }
@@ -470,7 +481,7 @@
     if (!alerts.length) { host.innerHTML = '<div class="empty-msg">No alerts yet. Waiting for readings...</div>'; return; }
     host.innerHTML = alerts.map(function (a) {
       var when = a.when ? a.when.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : a.label;
-      return '<div class="al ' + a.sev + (a.acked ? " acked" : "") + '"><div class="al-top"><span class="badge ' + (a.sev === "crit" ? "b-solid" : "b-warn") + '">' + (a.sev === "crit" ? "■ Critical" : "▲ Warning") + "</span><span class=\"al-meta\">" + esc(when) + (a.acked ? " · acknowledged" : "") + "</span></div><div>" + esc(a.text) + '</div><div class="al-btns"><button class="btn" type="button" data-alrec="' + a.rec + '">View record</button>' + (a.acked ? "" : '<button class="btn" type="button" data-alack="' + a.id + '">Acknowledge</button>') + "</div></div>";
+      return '<div class="al ' + a.sev + (a.acked ? " acked" : "") + '"><div class="al-top"><span class="badge ' + (a.sev === "crit" ? "b-solid" : "b-warn") + '">' + (a.sev === "crit" ? "■ Critical" : "▲ Warning") + "</span><span class=\"al-meta\">" + esc(when) + (a.acked ? " · acknowledged" + (a.ackBy ? " by " + esc(a.ackBy) : "") : "") + "</span></div><div>" + esc(a.text) + (a.by ? '<div class="al-meta">Entered by ' + esc(a.by) + '</div>' : '') + '</div><div class="al-btns"><button class="btn" type="button" data-alrec="' + a.rec + '">View record</button>' + (a.acked ? "" : '<button class="btn" type="button" data-alack="' + a.id + '">Acknowledge</button>') + "</div></div>";
     }).join("");
   }
   function beep() {
@@ -484,7 +495,7 @@
     if (!S.toasts || !$("drawer-alerts").hidden) return;   // the open Alerts panel already shows it
     var box = $("toasts"), el = document.createElement("div");
     el.className = "toast " + a.sev; el.setAttribute("role", a.sev === "crit" ? "alert" : "status");
-    el.innerHTML = "<b>" + (a.sev === "crit" ? "■ Critical alert" : "▲ Fuel alert") + "</b>" + esc(a.text) + '<div class="t-actions"><button class="btn" type="button" data-toast-view>View alerts</button><button class="btn" type="button" data-toast-x>Dismiss</button></div>';
+    el.innerHTML = "<b>" + (a.sev === "crit" ? "■ Critical alert" : "▲ Fuel alert") + "</b>" + esc(a.text) + (a.by ? '<div class="al-meta">Entered by ' + esc(a.by) + "</div>" : "") + '<div class="t-actions"><button class="btn" type="button" data-toast-view>View alerts</button><button class="btn" type="button" data-toast-x>Dismiss</button></div>';
     box.insertBefore(el, box.firstChild);
     while (box.children.length > 3) box.removeChild(box.lastChild);
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 9000);
@@ -525,7 +536,7 @@
   }
   function onUpdate(row) {
     var r = records.filter(function (x) { return x.dbId === row.id; })[0]; if (!r) return;
-    r.status = row.status; r.act = Number(row.actual_litres); r.exp = Number(row.expected_litres); r.km = Number(row.km);
+    r.status = row.status; r.updatedBy = row.updated_by || r.updatedBy; r.updatedAt = row.updated_at || r.updatedAt; r.act = Number(row.actual_litres); r.exp = Number(row.expected_litres); r.km = Number(row.km);
     r.flag = Math.max(0, FLAGS.indexOf(row.exception_flag || "")); renderAll();
   }
   function poll() {
@@ -571,33 +582,66 @@
       else if (p < 0.9) { dev = rnd(0.06, 0.14); flag = FLAGS[1]; } else { dev = rnd(0.04, 0.12); flag = FLAGS[2]; kmf = 0.72; }
     } else dev = rnd(-0.06, 0.06);
     return { date: MODE === "db" ? todayLocal() : numToDate(DATA_MAX), shift: shift, no: m.no, vtype: m.vtype, mine: m.mine, siding: sidingList[Math.floor(Math.random() * sidingList.length)] || m.siding || "Siding 1",
-      exp: m.norm, act: Math.round(m.norm * (1 + dev)), km: Math.round(m.norm * m.eff * kmf * rnd(0.98, 1.02)), flag: flag };
+      exp: m.norm, act: Math.round(m.norm * (1 + dev)), km: Math.round(m.norm * m.eff * kmf * rnd(0.98, 1.02)), flag: flag, system: true };
   }
   function tick(forceExc) { saveReading(makeDemoReading(forceExc), function () {}); }
 
+  function isAuditError(msg) { return /entered_by|updated_by|updated_at/i.test(String(msg || "")); }
+  function noteAudit() {
+    var el = $("source-banner"); if (!el || el.querySelector(".audit-note")) return;
+    var d = document.createElement("div"); d.className = "banner demo audit-note";
+    d.innerHTML = "<strong>Names are not being saved yet.</strong> Ask the Data Keeper to run database/03-audit-columns.sql. Until then readings and status changes still save, but without who did it.";
+    el.appendChild(d);
+  }
   // save one reading: to the database (real) or to this browser only (demo)
   function saveReading(v, done) {
+    if (!USER.can("add") && !v.system) { done(new Error("Your role cannot add readings.")); return; }
     var tmp = { exp: v.exp, act: v.act, flag: Math.max(0, FLAGS.indexOf(v.flag || "")) };
-    var status = excType(tmp) ? "Open" : "Closed";
+    var status = excType(tmp) ? "Open" : "Closed", by = v.system ? "Demo feed" : who();
     if (MODE === "db") {
-      db.from("fuel_readings").insert({ reading_date: v.date, mine: v.mine, siding: v.siding, vehicle_type: v.vtype, vehicle_no: v.no, shift: v.shift,
-        expected_litres: v.exp, actual_litres: v.act, km: v.km || 0, exception_flag: v.flag || "", status: status }).select().then(function (res) {
-        if (res.error) { showError("saving the reading", res.error, hintFor(res.error.message || "")); done(res.error); return; }
-        var r = addFromDb(res.data && res.data[0]); if (r) afterNew([r]);
+      var payload = { reading_date: v.date, mine: v.mine, siding: v.siding, vehicle_type: v.vtype, vehicle_no: v.no, shift: v.shift,
+        expected_litres: v.exp, actual_litres: v.act, km: v.km || 0, exception_flag: v.flag || "", status: status };
+      var send = function (withAudit) {
+        var p = Object.assign({}, payload); if (withAudit) p.entered_by = by;
+        return db.from("fuel_readings").insert(p).select();
+      };
+      var ok = function (res) {
+        var r = addFromDb(res.data && res.data[0]); if (r) { if (!r.enteredBy && hasAudit !== false) r.enteredBy = by; afterNew([r]); }
         done(null, r);
+      };
+      send(hasAudit !== false).then(function (res) {
+        if (res.error && hasAudit !== false && isAuditError(res.error.message)) {
+          hasAudit = false; noteAudit();
+          return send(false).then(function (r2) { if (r2.error) { showError("saving the reading", r2.error, hintFor(r2.error.message || "")); done(r2.error); } else ok(r2); });
+        }
+        if (res.error) { showError("saving the reading", res.error, hintFor(res.error.message || "")); done(res.error); return; }
+        if (hasAudit === null) hasAudit = true;
+        ok(res);
       }, function (e) { showError("saving the reading", e, hintFor(String(e && e.message))); done(e); });
     } else {
-      var r = makeRec({ date: v.date, vtype: v.vtype, no: v.no, mine: v.mine, siding: v.siding, shift: v.shift, exp: v.exp, act: v.act, km: v.km, flag: v.flag, status: status, live: true });
+      var r = makeRec({ date: v.date, vtype: v.vtype, no: v.no, mine: v.mine, siding: v.siding, shift: v.shift, exp: v.exp, act: v.act, km: v.km, flag: v.flag, status: status, live: true, enteredBy: by });
       records.push(r); afterNew([r]); done(null, r);
     }
   }
   function setStatus(r, s) {
+    if (!USER.can("status")) return;
+    var stamp = new Date().toISOString();
     if (MODE === "db" && r.dbId) {
-      db.from("fuel_readings").update({ status: s }).eq("id", r.dbId).select().then(function (res) {
+      var send = function (withAudit) {
+        var p = { status: s }; if (withAudit) { p.updated_by = who(); p.updated_at = stamp; }
+        return db.from("fuel_readings").update(p).eq("id", r.dbId).select();
+      };
+      var ok = function (audited) { r.status = s; if (audited) { r.updatedBy = who(); r.updatedAt = stamp; } closeRecord(); renderAll(); };
+      send(hasAudit !== false).then(function (res) {
+        if (res.error && hasAudit !== false && isAuditError(res.error.message)) {
+          hasAudit = false; noteAudit();
+          return send(false).then(function (r2) { if (r2.error) showError("saving the status", r2.error, hintFor(r2.error.message || "")); else ok(false); });
+        }
         if (res.error) { showError("saving the status", res.error, hintFor(res.error.message || "")); return; }
-        r.status = s; closeRecord(); renderAll();
+        if (hasAudit === null) hasAudit = true;
+        ok(hasAudit !== false);
       }, function (e) { showError("saving the status", e, hintFor(String(e && e.message))); });
-    } else { overrides[keyOf(r)] = s; save("mclOverviewStatus", overrides); closeRecord(); renderAll(); }
+    } else { overrides[keyOf(r)] = s; r.updatedBy = who(); r.updatedAt = stamp; save("mclOverviewStatus", overrides); closeRecord(); renderAll(); }
   }
 
   /* ================= add-reading form ================= */
@@ -609,6 +653,7 @@
     else { p.className = "preview good"; p.textContent = "✔ Within limits (" + (d > 0 ? "+" : "") + num1(d) + "%). No alert."; }
   }
   function openAdd() {
+    if (!USER.can("add")) return;
     var h = new Date().getHours();
     $("a-date").value = todayLocal(); $("a-shift").value = SHIFTS[h >= 6 && h < 14 ? 0 : h >= 14 && h < 22 ? 1 : 2];
     $("a-msg").innerHTML = ""; previewAdd();
@@ -624,6 +669,7 @@
     });
     $("add-form").addEventListener("submit", function (ev) {
       ev.preventDefault(); $("error-area").innerHTML = ""; $("a-msg").innerHTML = "";
+      if (!USER.can("add")) { $("a-msg").innerHTML = '<p class="msg bad">Your role cannot add readings.</p>'; return; }
       var v = { date: $("a-date").value, shift: $("a-shift").value, no: $("a-no").value.trim(), vtype: $("a-type").value, mine: $("a-mine").value.trim(), siding: $("a-siding").value.trim(),
         exp: parseFloat($("a-exp").value), act: parseFloat($("a-act").value), km: parseFloat($("a-km").value) || 0, flag: $("a-flag").value };
       var miss = [];
@@ -653,7 +699,7 @@
     $("v-list").innerHTML = views.length ? views.map(function (v, i) { return "<li><span>" + esc(v.name) + '</span><span><button class="btn" type="button" data-vapply="' + i + '">Apply</button> <button class="btn" type="button" data-vdel="' + i + '">Delete</button></span></li>'; }).join("") : '<li class="note">No saved views yet.</li>';
   }
   function bindCustomize() {
-    function numField(id, key) { $(id).addEventListener("input", function () { var v = parseFloat(this.value); if (!(v > 0)) return; S[key] = v; persist(); renderAll(); }); }
+    function numField(id, key) { $(id).addEventListener("input", function () { if (!USER.can("rules")) return; var v = parseFloat(this.value); if (!(v > 0)) return; S[key] = v; persist(); renderAll(); }); }
     numField("c-high", "high"); numField("c-low", "low"); numField("c-crit", "crit"); numField("c-price", "price");
     $("c-live").addEventListener("change", function () { S.live = this.checked; persist(); startLive(); });
     $("c-interval").addEventListener("change", function () { S.interval = +this.value; persist(); startLive(); });
@@ -708,15 +754,16 @@
     $("rec-close").addEventListener("click", closeRecord);
     $("rec-modal").addEventListener("click", function (e) { if (e.target === this) closeRecord(); });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeRecord(); closeDrawers(); } if ((e.key === "Enter") && e.target.getAttribute && e.target.getAttribute("data-rec")) openRecord(+e.target.getAttribute("data-rec")); });
-    $("al-ack").addEventListener("click", function () { alerts.forEach(function (a) { a.acked = true; }); renderAlerts(); updateBadge(); });
+    $("al-ack").addEventListener("click", function () { alerts.forEach(function (a) { if (!a.acked) { a.acked = true; a.ackBy = who(); } }); renderAlerts(); updateBadge(); });
     $("al-clear").addEventListener("click", function () { alerts = []; renderAlerts(); updateBadge(); });
     $("al-test").addEventListener("click", function () {
+      if (!USER.can("test")) return;
       if (MODE === "db" && !window.confirm("Save one made-up exception reading to the database?\n\nEvery open dashboard will get the alert.")) return;
       tick(true);
     });
     $("alert-list").addEventListener("click", function (e) {
       var ack = e.target.getAttribute("data-alack"), rec = e.target.getAttribute("data-alrec");
-      if (ack) { alerts.forEach(function (a) { if (a.id === +ack) a.acked = true; }); renderAlerts(); updateBadge(); }
+      if (ack) { alerts.forEach(function (a) { if (a.id === +ack) { a.acked = true; a.ackBy = who(); } }); renderAlerts(); updateBadge(); }
       if (rec) { closeDrawers(true); openRecord(+rec); }
     });
     $("toasts").addEventListener("click", function (e) {
@@ -736,6 +783,18 @@
     document.addEventListener("change", function (e) { if (e.target.getAttribute && e.target.getAttribute("data-sortsel")) { var v = e.target.value.split("|"); UI.sortKey = v[0]; UI.sortDir = v[1]; renderDetails(); } });
   }
 
+  /* ================= roles (no password; guides the screen only) ================= */
+  function applyRole() {
+    var role = USER.get().role, add = USER.can("add"), test = USER.can("test"), rules = USER.can("rules");
+    $("btn-add").disabled = !add; $("btn-add").title = add ? "" : "Your role (" + role + ") cannot add readings. Switch role with your name at the top right.";
+    var ap = $("add-perm"); ap.hidden = add; ap.textContent = "Your role (" + role + ") cannot add readings.";
+    $("al-test").disabled = !test; var tn = $("test-note"); tn.hidden = test; tn.textContent = "Test readings can be sent by the Fuel Manager only. Your role: " + role + ".";
+    ["c-high", "c-low", "c-crit", "c-price"].forEach(function (id) { $(id).disabled = !rules; });
+    var rn = $("rules-note"); rn.hidden = rules; rn.textContent = "Your role (" + role + ") cannot change alert rules or the price. Fuel Manager and E&M Manager can.";
+    if ($("rec-modal").classList.contains("open")) closeRecord();
+  }
+  USER.onChange(applyRole);
+
   /* ================= start ================= */
   function setBanner(html, cls) { $("source-banner").innerHTML = html ? '<div class="banner ' + cls + '">' + html + "</div>" : ""; }
   function setModeTexts() {
@@ -747,7 +806,8 @@
   }
   function finish(bannerHtml, bannerCls) {
     refreshLists(); initFilters(); seedAlerts(); setModeTexts(); setBanner(bannerHtml, bannerCls);
-    renderAll(); startLive();
+    renderAll(); startLive(); applyRole();
+    if (MODE === "db" && hasAudit === false) noteAudit();
   }
   function useDemo(err) {
     MODE = "demo"; loadDemo();
@@ -770,6 +830,7 @@
     var timeout = new Promise(function (_, rej) { setTimeout(function () { rej(new Error("The database did not answer within 15 seconds (timed out).")); }, 15000); });
     Promise.race([fetchAll(0, []), timeout]).then(function (rows) {
       MODE = "db"; records = []; dbIds = {}; lastCreated = "";
+      if (rows.length) hasAudit = ("entered_by" in rows[0]);
       rows.forEach(function (row) { addFromDb(row); });
       var note = rows.length
         ? "<strong>Connected to the database</strong> · " + rows.length + " readings. New readings raise alerts live."

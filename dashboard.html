@@ -142,6 +142,7 @@
       <button class="btn" id="al-clear" type="button">Clear list</button>
       <button class="btn" id="al-test" type="button">Send test reading</button>
     </div>
+    <p class="perm-note" id="test-note" hidden></p>
     <div id="alert-list"></div>
   </aside>
 
@@ -150,6 +151,7 @@
     <div class="drawer-head"><h2 id="dc-title">Customize</h2><button class="btn" type="button" data-close>Close</button></div>
     <p class="note">Changes apply straight away and are saved in this browser only.</p>
     <h3>Alert rules</h3>
+    <p class="perm-note" id="rules-note" hidden></p>
     <div class="fld"><label for="c-high">High consumption: more than (% above norm)</label><input type="number" id="c-high" min="1" max="100" step="1"></div>
     <div class="fld"><label for="c-low">Low consumption: more than (% below norm)</label><input type="number" id="c-low" min="1" max="100" step="1"></div>
     <div class="fld"><label for="c-crit">Critical alert: at or above (% above norm)</label><input type="number" id="c-crit" min="1" max="200" step="1"></div>
@@ -177,6 +179,7 @@
   <!-- ADD READING DRAWER -->
   <aside class="drawer" id="drawer-add" role="dialog" aria-modal="true" aria-labelledby="dad-title" hidden>
     <div class="drawer-head"><h2 id="dad-title">Add a fuel reading</h2><button class="btn" type="button" data-close>Close</button></div>
+    <p class="perm-note" id="add-perm" hidden></p>
     <p class="note" id="add-note">One reading = one vehicle, one shift. Use made-up values only.</p>
     <form id="add-form" novalidate>
       <div class="fld two"><div><label for="a-date">Date</label><input type="date" id="a-date" required></div><div><label for="a-shift">Shift</label><select id="a-shift"><option>A Shift</option><option>B Shift</option><option>C Shift</option></select></div></div>
@@ -204,6 +207,7 @@
   <script src="config.js"></script>
   <!-- overview-data.js is only the built-in sample data, used if the database cannot be read -->
   <script src="overview-data.js"></script>
+  <script src="user.js"></script>
   <script src="overview.js"></script>
 </body>
 </html>

@@ -133,4 +133,14 @@
   Known: needs 02-fuel-readings.sql run by the Data Keeper; anyone with the link can add/update readings (no
   login, by design); alerts are not sent to phones when the page is closed (that needs a server, later).
   Next: Data Keeper runs 02 file; test with two devices; decide about SMS/e-mail alerts.
+- Phase 7 (Claude): user roles and names, NO password. New user.js (shared by index.html and dashboard.html): a
+  "Who are you?" picker (name/ID + role) opens on the first visit; the name chip in the header switches it. Roles:
+  Fuel Manager (add, change status, test reading, alert rules), E&M Manager (add, change status, alert rules),
+  Shift Supervisor (add), Viewer (view + acknowledge). Buttons the role cannot use are switched off with a short
+  explanation. The role only guides the screen; it is NOT security (anyone with the link can pick any role; database
+  rules are still open, by our no-login rule). Names are saved in the database when database/03-audit-columns.sql has
+  been run (3 optional columns on fuel_readings: entered_by, updated_by, updated_at); if not run, everything still
+  works and a small yellow note says names are not being saved. Alerts show "Entered by ..." and "acknowledged by ...";
+  the record window shows who last changed the status. Tested with a stand-in database and a local throwaway
+  Postgres (03 file), not on our Supabase. Next: Data Keeper runs 03 file; decide if roles should also filter alerts.
 
