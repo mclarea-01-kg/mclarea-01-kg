@@ -105,3 +105,6 @@ select * from (values
     ('2026-09-30', 'Dumper', 'DT-04', 'OP-103', 'A Shift', 240, 362, 'Fuel Point-02', 'Pending', 'Check Fuel Issue', 'Single very high fuel issue; verify hour-meter')
 ) as v(record_date, equipment_type, equipment_no, operator_id, shift, norm_litres, actual_litres, fuel_point, inspection_status, action_required, remarks)
 where not exists (select 1 from public.diesel_exceptions);
+
+-- Ask Supabase to refresh its list of tables now, so the website can see the new table.
+notify pgrst, 'reload schema';
