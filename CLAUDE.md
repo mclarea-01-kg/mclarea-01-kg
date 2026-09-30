@@ -75,7 +75,7 @@
 - Tool name: Diesel Exception & Fuel Consumption Monitoring Dashboard
 - Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
 - Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
-- Table name and columns: fuel_readings (database/02, 03, 04 files): id, created_at, reading_date, mine, vehicle_type, vehicle_no, shift, expected_litres (= the vehicle's FIXED litres per shift), km (= FIXED distance per shift), consumed_litres (optional: diesel typed in the Add reading form; if empty the fixed litres are used), exception_type ('' = normal, or High Consumption / Low Consumption / Refueling Irregularity / Mileage Mismatch / Other), status, entered_by, updated_by, updated_at. OLD columns siding, actual_litres, exception_flag still exist but are optional and unused. The older table diesel_exceptions (01-setup.sql) is NOT used any more.
+- Table name and columns: fuel_readings (database/02, 03, 04 files): id, created_at, reading_date, mine, vehicle_type, vehicle_no, shift, expected_litres (= the vehicle's FIXED litres per shift), consumed_litres (optional: diesel typed in the Add reading form; if empty the fixed litres are used), exception_type ('' = normal, or High Consumption / Low Consumption / Refueling Irregularity / Mileage Mismatch / Other), status, entered_by, updated_by, updated_at. OLD columns siding, actual_litres, exception_flag still exist but are optional and unused. The older table diesel_exceptions (01-setup.sql) is NOT used any more.
 - Pages: index.html = home; dashboard.html = dashboard (code in overview.js; fixed litres/km per vehicle in fixed-values.js; built-in sample data in overview-data.js; user.js = who-are-you picker; styles in style.css + overview.css).
 
 ## Progress Log (newest entry at the bottom)
@@ -174,4 +174,12 @@
   never overwritten; changing the vehicle or saving resets it. Off when the consumed_litres column is missing (05 not
   run). No database change. Tested with a stand-in database only. Next: live test; decide if suggestions should also
   use a wider band for Critical.
+- Phase 11 (Claude, on request): distance removed everywhere (fixed-values.js no longer has km; form, record window,
+  KPI, charts and insights no longer show km or km/l). Fuel is now measured in Ltrs/hr = litres / 8, because every
+  shift counts as exactly 8 hours (window.SHIFT_HOURS in fixed-values.js). KPI "Average Fuel Efficiency (km/l)"
+  became "Average Fuel Consumption (Ltrs/hr)" (higher = worse); the trend line and the by-vehicle-type chart use
+  Ltrs/hr. The Add reading box is now called "Actual consumed (Ltrs)" (starts at the vehicle's fixed litres, shows
+  its Ltrs/hr as you type; the exception-type suggestion still uses it). The old km column stays in the database,
+  unused (new readings leave it at 0). No new SQL. Tested with a stand-in database only.
+  Next: live test; decide if shift hours should differ by vehicle type (set hours per vehicle, needs a code change).
 

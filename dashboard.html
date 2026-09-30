@@ -73,7 +73,7 @@
         <div class="row r-trend">
           <section class="pcard" data-widget="trend">
             <h2 class="ptitle">Diesel Consumption Trend</h2>
-            <div class="pbody"><div class="cbox"><canvas id="ch-trend" role="img" aria-label="Bars of diesel consumed and a line of fuel efficiency over time"></canvas><div class="empty-msg" id="empty-trend" hidden>No records match the selected filters.</div></div></div>
+            <div class="pbody"><div class="cbox"><canvas id="ch-trend" role="img" aria-label="Bars of diesel consumed and a line of fuel consumption in litres per hour over time"></canvas><div class="empty-msg" id="empty-trend" hidden>No records match the selected filters.</div></div></div>
           </section>
           <section class="pcard" data-widget="type">
             <h2 class="ptitle">Exceptions by Type</h2>
@@ -91,8 +91,8 @@
         <!-- ROW 3 -->
         <div class="row r-three">
           <section class="pcard" data-widget="eff">
-            <h2 class="ptitle">Fuel Efficiency by Vehicle Type (km/l)</h2>
-            <div class="pbody"><div class="cbox"><canvas id="ch-eff" role="img" aria-label="Bar chart of fuel efficiency by vehicle type"></canvas><div class="empty-msg" id="empty-eff" hidden>No records.</div></div></div>
+            <h2 class="ptitle">Fuel Consumption Rate by Vehicle Type (Ltrs/hr)</h2>
+            <div class="pbody"><div class="cbox"><canvas id="ch-eff" role="img" aria-label="Bar chart of fuel consumption rate in litres per hour by vehicle type"></canvas><div class="empty-msg" id="empty-eff" hidden>No records.</div></div></div>
           </section>
           <section class="pcard" data-widget="equip">
             <h2 class="ptitle">Fuel Consumption by Equipment (L)</h2>
@@ -182,12 +182,13 @@
   <aside class="drawer" id="drawer-add" role="dialog" aria-modal="true" aria-labelledby="dad-title" hidden>
     <div class="drawer-head"><h2 id="dad-title">Add a fuel reading</h2><button class="btn" type="button" data-close>Close</button></div>
     <p class="perm-note" id="add-perm" hidden></p>
-    <p class="note" id="add-note">Choose the vehicle, date, shift, diesel consumed and exception type.</p>
+    <p class="note" id="add-note">Choose the vehicle, date, shift, actual consumed and exception type.</p>
     <form id="add-form" novalidate>
       <div class="fld two"><div><label for="a-date">Date</label><input type="date" id="a-date" required></div><div><label for="a-shift">Shift</label><select id="a-shift"><option>A Shift</option><option>B Shift</option><option>C Shift</option></select></div></div>
       <div class="fld"><label for="a-no">Vehicle</label><select id="a-no" required></select></div>
       <dl class="fixed-box" id="a-fixed" aria-label="Fixed values for the chosen vehicle"></dl>
-      <div class="fld"><label for="a-cons">Diesel consumed (L)</label><input type="number" id="a-cons" min="0" step="any" inputmode="decimal" placeholder="e.g. 360">
+      <div class="fld"><label for="a-cons">Actual consumed (Ltrs)</label><input type="number" id="a-cons" min="0" step="any" inputmode="decimal" placeholder="e.g. 360">
+        <p class="note" id="a-rate" style="margin:4px 0 0;font-weight:700"></p>
         <p class="note" id="a-cons-note" style="margin:4px 0 0">Prefilled with the vehicle's fixed fuel. Change it if this shift used a different amount.</p></div>
       <div class="fld"><label for="a-type">Exception type</label>
         <select id="a-type"><option value="">None - normal reading</option><option>High Consumption</option><option>Low Consumption</option><option>Refueling Irregularity</option><option>Mileage Mismatch</option><option>Other</option></select>

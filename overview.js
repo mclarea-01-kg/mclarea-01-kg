@@ -11,7 +11,7 @@
   var EXC_TYPES = ["High Consumption", "Low Consumption", "Refueling Irregularity", "Mileage Mismatch", "Other"];
   var EXC_COLORS = { "High Consumption": "#c62828", "Low Consumption": "#0b57c7", "Refueling Irregularity": "#c98a00", "Mileage Mismatch": "#0a1f44", "Other": "#8a96a8" };
   var STATUSES = ["Open", "Under Review", "In Progress", "Closed"];
-  var WIDGETS = [["trend", "Diesel consumption trend"], ["type", "Exceptions by type"], ["mine", "Exceptions by mine"], ["eff", "Fuel efficiency by vehicle type"], ["equip", "Fuel consumption by equipment"], ["locations", "Top 5 exception vehicles"], ["details", "Exception details table"], ["insights", "Key insights"], ["actions", "Recommended actions"]];
+  var WIDGETS = [["trend", "Diesel consumption trend"], ["type", "Exceptions by type"], ["mine", "Exceptions by mine"], ["eff", "Fuel consumption rate by vehicle type"], ["equip", "Fuel consumption by equipment"], ["locations", "Top 5 exception vehicles"], ["details", "Exception details table"], ["insights", "Key insights"], ["actions", "Recommended actions"]];
   var DEFAULTS = { suggestHigh: 10, suggestLow: 10, alertTypes: EXC_TYPES.slice(), critTypes: ["High Consumption"], price: 92, group: "auto", live: true, interval: 30, toasts: true, sound: false, rows: 8, widgets: {} };
   WIDGETS.forEach(function (w) { DEFAULTS.widgets[w[0]] = true; });
 
@@ -39,7 +39,8 @@
 
   var SHIFTS = ["A Shift", "B Shift", "C Shift"];
   var TYPE_ORDER = ["H.E. Dumpers", "Tippers", "Excavators", "Dozers", "Graders", "Others"];
-  var FIXED = {};   // fixed litres and distance per vehicle (fixed-values.js)
+  var HOURS = window.SHIFT_HOURS || 8;   // every shift counts as 8 hours, so Ltrs/hr = litres / 8
+  var FIXED = {};   // fixed litres per vehicle (fixed-values.js)
   (window.FIXED_VEHICLES || []).forEach(function (v) { FIXED[v.no] = v; });
 
   /* ================= settings, records, state ================= */
@@ -66,16 +67,16 @@
     if (act !== null && act !== undefined && exp > 0) { if (act > exp * 1.10) return "High Consumption"; if (act < exp * 0.90) return "Low Consumption"; }
     return "";
   }
-  // litres, distance, vehicle type and mine always come from the fixed list when the vehicle is known
-  function withFixed(o) { var fx = FIXED[o.no]; if (fx) { o.vtype = fx.vtype; o.mine = fx.mine; o.lit = fx.litres; o.km = fx.km; o.fixed = fx.litres; } return o; }
+  // fixed litres, vehicle type and mine always come from the fixed list when the vehicle is known
+  function withFixed(o) { var fx = FIXED[o.no]; if (fx) { o.vtype = fx.vtype; o.mine = fx.mine; o.lit = fx.litres; o.fixed = fx.litres; } return o; }
   function makeRec(o) {
-    return { id: records.length, date: o.date, day: dayNum(o.date), no: o.no, vtype: o.vtype, mine: o.mine, shift: o.shift, lit: o.lit, fixed: o.fixed !== undefined ? o.fixed : o.lit, cons: !!o.cons, km: o.km,
+    return { id: records.length, date: o.date, day: dayNum(o.date), no: o.no, vtype: o.vtype, mine: o.mine, shift: o.shift, lit: o.lit, fixed: o.fixed !== undefined ? o.fixed : o.lit, cons: !!o.cons,
       type: o.type || "", status: o.status, dbId: o.dbId || null, live: !!o.live, enteredBy: o.enteredBy || "", updatedBy: o.updatedBy || "", updatedAt: o.updatedAt || "" };
   }
   function recFromDb(row) {
     var typ = (row.exception_type !== undefined && row.exception_type !== null) ? row.exception_type : legacyType(row.exception_flag, row.actual_litres === null || row.actual_litres === undefined ? null : Number(row.actual_litres), Number(row.expected_litres));
     var o = withFixed({ date: String(row.reading_date).slice(0, 10), vtype: row.vehicle_type, no: row.vehicle_no, mine: row.mine, shift: row.shift,
-      lit: Number(row.expected_litres), km: Number(row.km), type: typ, status: row.status, dbId: row.id, enteredBy: row.entered_by, updatedBy: row.updated_by, updatedAt: row.updated_at });
+      lit: Number(row.expected_litres), type: typ, status: row.status, dbId: row.id, enteredBy: row.entered_by, updatedBy: row.updated_by, updatedAt: row.updated_at });
     if (row.consumed_litres !== null && row.consumed_litres !== undefined && row.consumed_litres !== "") { o.lit = Number(row.consumed_litres); o.cons = true; }   // diesel typed in the Add reading form
     return makeRec(o);
   }
@@ -83,13 +84,13 @@
     records = [];
     ROWS.forEach(function (r) {
       var m = META.machines[r[1]];
-      records.push(makeRec(withFixed({ date: r[0], vtype: META.types[m.type], no: m.no, mine: META.mines[m.mine], shift: META.shifts[r[2]], lit: r[4], km: r[6], type: legacyType(META.flags[r[7]], r[5], r[4]), status: META.statuses[r[8]] })));
+      records.push(makeRec(withFixed({ date: r[0], vtype: META.types[m.type], no: m.no, mine: META.mines[m.mine], shift: META.shifts[r[2]], lit: r[4], type: legacyType(META.flags[r[7]], r[5], r[4]), status: META.statuses[r[8]] })));
     });
   }
   function deriveMachines() {
     var out = {};
-    (window.FIXED_VEHICLES || []).forEach(function (v) { out[v.no] = { no: v.no, vtype: v.vtype, mine: v.mine, litres: v.litres, km: v.km }; });
-    records.forEach(function (r) { if (!out[r.no]) out[r.no] = { no: r.no, vtype: r.vtype, mine: r.mine, litres: r.lit, km: r.km }; });
+    (window.FIXED_VEHICLES || []).forEach(function (v) { out[v.no] = { no: v.no, vtype: v.vtype, mine: v.mine, litres: v.litres }; });
+    records.forEach(function (r) { if (!out[r.no]) out[r.no] = { no: r.no, vtype: r.vtype, mine: r.mine, litres: r.lit }; });
     return Object.keys(out).sort().map(function (k) { return out[k]; });
   }
   function refreshLists() {
@@ -173,7 +174,8 @@
     view = { from: from, to: to, span: span, pool: pool, prev: prev, exc: excOf(pool), prevExc: excOf(prev) };
   }
   function delta(cur, prev) { return prev > 0 ? (cur - prev) / prev * 100 : null; }
-  function effOf(list) { var l = sum(list, function (r) { return r.lit; }); return l ? sum(list, function (r) { return r.km; }) / l : 0; }
+  // average fuel consumption rate in Ltrs/hr: litres divided by the hours of all the shifts in the list
+  function rateOf(list) { return list.length ? sum(list, function (r) { return r.lit; }) / (list.length * HOURS) : 0; }
 
   /* ================= icons ================= */
   var ICON = {
@@ -187,7 +189,7 @@
   function renderKpis() {
     var exc = view.exc, pool = view.pool;
     var cons = sum(pool, function (r) { return r.lit; }), pcons = sum(view.prev, function (r) { return r.lit; });
-    var eff = effOf(pool), peff = effOf(view.prev);
+    var eff = rateOf(pool), peff = rateOf(view.prev);
     function dl(d, upBad, unit) {
       if (d === null) return '<span>No previous period to compare</span>';
       var up = d > 0.05, flat = Math.abs(d) < 0.05;
@@ -197,7 +199,7 @@
     var k = [
       { ico: "red", svg: ICON.warn, t: "Total Diesel Exceptions", v: num(exc.length), d: dl(delta(exc.length, view.prevExc.length), true) },
       { ico: "", svg: ICON.pump, t: "Total Diesel Consumed", v: num(cons) + " <small>L</small>", d: dl(delta(cons, pcons), true) },
-      { ico: "dark", svg: ICON.drop, t: "Average Fuel Efficiency", v: (eff ? eff.toFixed(2) : "–") + " <small>km/l</small>", d: dl(delta(eff, peff), false) },
+      { ico: "dark", svg: ICON.drop, t: "Average Fuel Consumption", v: (eff ? eff.toFixed(1) : "–") + " <small>Ltrs/hr</small>", d: dl(delta(eff, peff), true) },
       { ico: "green", svg: ICON.rupee, t: "Estimated Fuel Cost", v: rs(cons * S.price), d: dl(delta(cons, pcons), true) + " <span>· at " + rs(S.price) + "/L</span>" }
     ];
     $("ov-kpis").innerHTML = k.map(function (x) {
@@ -258,32 +260,32 @@
       if (g === "week") return d - ((d + 3) % 7);
       var dt = new Date(d * 86400000); return dt.getUTCFullYear() * 12 + dt.getUTCMonth();
     }
-    var order = [], lit = {}, km = {}, label = {};
+    var order = [], lit = {}, cnt = {}, label = {};
     for (var d = from; d <= to; d++) {
       var k = key(d);
       if (lit[k] === undefined) {
-        lit[k] = 0; km[k] = 0; order.push(k);
+        lit[k] = 0; cnt[k] = 0; order.push(k);
         label[k] = g === "day" ? fmtShort(numToDate(d)) : g === "week" ? "Wk " + fmtShort(numToDate(k)) : MON[k % 12] + " " + Math.floor(k / 12);
       }
     }
-    view.pool.forEach(function (r) { var k = key(r.day); lit[k] += r.lit; km[k] += r.km; });
+    view.pool.forEach(function (r) { var k = key(r.day); lit[k] += r.lit; cnt[k]++; });
     var labels = order.map(function (k) { return label[k]; });
     var cons = order.map(function (k) { return lit[k]; });
-    var eff = order.map(function (k) { return lit[k] ? Math.round(km[k] / lit[k] * 100) / 100 : null; });
+    var eff = order.map(function (k) { return cnt[k] ? Math.round(lit[k] / (cnt[k] * HOURS) * 10) / 10 : null; });
     toggleEmpty("empty-trend", !sum(cons, function (x) { return x; }));
     upsert("trend", { type: "bar", data: { labels: labels, datasets: [
       { type: "bar", label: "Diesel Consumed (L)", data: cons, backgroundColor: "#0b57c7", borderRadius: 3, yAxisID: "y", showLabels: true, order: 2 },
-      { type: "line", label: "Fuel Efficiency (km/l)", data: eff, borderColor: "#0b1220", backgroundColor: "#0b1220", yAxisID: "y1", tension: 0, pointRadius: 3, showLabels: true, labelFmt: function (v) { return v.toFixed(2); }, order: 1 }
+      { type: "line", label: "Fuel Consumption (Ltrs/hr)", data: eff, borderColor: "#0b1220", backgroundColor: "#0b1220", yAxisID: "y1", tension: 0, pointRadius: 3, showLabels: true, labelFmt: function (v) { return v.toFixed(1); }, order: 1 }
     ] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, layout: { padding: { top: 18 } },
       plugins: { legend: { position: "top", labels: { boxWidth: 12 } } },
       scales: { x: { ticks: { maxRotation: 60, autoSkip: true, maxTicksLimit: 14 } }, y: { beginAtZero: true, position: "left", title: { display: true, text: "Diesel consumed (L)" } },
-        y1: { position: "right", title: { display: true, text: "Fuel efficiency (km/l)" }, grid: { drawOnChartArea: false }, suggestedMin: 0 } } }, plugins: [labelPlugin] });
+        y1: { position: "right", title: { display: true, text: "Fuel consumption (Ltrs/hr)" }, grid: { drawOnChartArea: false }, suggestedMin: 0 } } }, plugins: [labelPlugin] });
   }
 
   function renderType() {
     var exc = view.exc, counts = EXC_TYPES.map(function (t) { return exc.filter(function (r) { return r._t === t; }).length; }), total = sum(counts, function (x) { return x; });
     toggleEmpty("empty-type", !total);
-    var defs = { "High Consumption": "(too much fuel used)", "Low Consumption": "(too little fuel recorded)", "Refueling Irregularity": "", "Mileage Mismatch": "(km does not match fuel)", "Other": "" };
+    var defs = { "High Consumption": "(too much fuel used)", "Low Consumption": "(too little fuel recorded)", "Refueling Irregularity": "", "Mileage Mismatch": "(fuel does not match usage)", "Other": "" };
     $("type-legend").innerHTML = EXC_TYPES.map(function (t, i) {
       return '<li><span class="sw" style="background:' + EXC_COLORS[t] + '"></span><span><b>' + esc(t) + "</b> " + esc(defs[t]) + "<small>" + counts[i] + " (" + (total ? Math.round(counts[i] / total * 100) : 0) + "%)</small></span></li>";
     }).join("");
@@ -298,10 +300,10 @@
   }
 
   function renderEff() {
-    var rows = typeList.map(function (t) { var l = view.pool.filter(function (r) { return r.vtype === t; }); return [t, effOf(l), l.length]; }).filter(function (r) { return r[2]; }).sort(function (a, b) { return b[1] - a[1]; });
+    var rows = typeList.map(function (t) { var l = view.pool.filter(function (r) { return r.vtype === t; }); return [t, rateOf(l), l.length]; }).filter(function (r) { return r[2]; }).sort(function (a, b) { return b[1] - a[1]; });
     toggleEmpty("empty-eff", !rows.length);
-    upsert("eff", { type: "bar", data: { labels: rows.map(function (r) { return r[0]; }), datasets: [{ label: "km/l", data: rows.map(function (r) { return Math.round(r[1] * 100) / 100; }), backgroundColor: "#0b57c7", borderRadius: 3, showLabels: true, labelFmt: function (v) { return v.toFixed(2); } }] },
-      options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: "km/l" } }, x: { grid: { display: false } } } }, plugins: [labelPlugin] });
+    upsert("eff", { type: "bar", data: { labels: rows.map(function (r) { return r[0]; }), datasets: [{ label: "Ltrs/hr", data: rows.map(function (r) { return Math.round(r[1] * 10) / 10; }), backgroundColor: "#0b57c7", borderRadius: 3, showLabels: true, labelFmt: function (v) { return v.toFixed(1); } }] },
+      options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: "Ltrs/hr" } }, x: { grid: { display: false } } } }, plugins: [labelPlugin] });
   }
 
   function renderEquip() {
@@ -375,8 +377,8 @@
       var flagged = sum(exc, function (r) { return r.lit; });
       if (cons) items.push("Fuel on flagged readings: " + num(flagged) + " L (" + Math.round(flagged / cons * 100) + "% of total), about " + rs(flagged * S.price) + ".");
     }
-    var eff = effOf(view.pool), dEf = delta(eff, effOf(view.prev));
-    if (eff) items.push("Overall fuel efficiency " + (dEf === null ? "is " : dEf >= 0 ? "improved to " : "declined to ") + eff.toFixed(2) + " km/l" + (dEf === null ? "." : " (" + (dEf >= 0 ? "▲ " : "▼ ") + num1(Math.abs(dEf)) + "%)."));
+    var eff = rateOf(view.pool), dEf = delta(eff, rateOf(view.prev));
+    if (eff) items.push("Average fuel consumption " + (dEf === null ? "is " : Math.abs(dEf) < 0.05 ? "is unchanged at " : dEf > 0 ? "rose to " : "fell to ") + eff.toFixed(1) + " Ltrs/hr" + (dEf === null || Math.abs(dEf) < 0.05 ? "." : " (" + (dEf > 0 ? "\u25B2 " : "\u25BC ") + num1(Math.abs(dEf)) + "%)."));
     var bt = typeList.map(function (t) { return [t, sum(view.pool.filter(function (r) { return r.vtype === t; }), function (r) { return r.lit; })]; }).sort(function (a, b) { return b[1] - a[1]; });
     if (cons && bt[0][1]) items.push(bt[0][0] + " are the highest fuel consumers (" + Math.round(bt[0][1] / cons * 100) + "% of total).");
     $("insights").innerHTML = items.map(function (t, i) { return '<li><span class="ic" aria-hidden="true">' + (i + 1) + "</span><span>" + esc(t) + "</span></li>"; }).join("");
@@ -422,10 +424,10 @@
   var recOpener = null;
   function openRecord(id) {
     var r = records[id]; if (!r) return;
-    var t = r._t || excType(r), eff = r.lit ? r.km / r.lit : 0;
+    var t = r._t || excType(r);
     $("rec-title").textContent = r.no + " – " + r.vtype + " · " + fmtDate(r.date);
-    var rows = [["Mine", r.mine], ["Shift", r.shift], ["Fixed fuel", num(r.fixed) + " L"], ["Diesel consumed", r.cons ? num1(r.lit) + " L (recorded)" : "not recorded (fixed fuel is used)"], ["Fixed distance", num(r.km) + " km"], ["Efficiency", eff.toFixed(2) + " km/l"],
-      ["Exception type", t || "None (normal reading)"], ["Fuel cost of this reading", rs(r.lit * S.price)], ["Record", MODE === "db" ? "Saved in the database" : (r.live ? "Simulated live reading" : "Sample record")]];
+    var rows = [["Mine", r.mine], ["Shift", r.shift], ["Fixed fuel", num(r.fixed) + " L"], ["Actual consumed", r.cons ? num1(r.lit) + " Ltrs (recorded)" : "not recorded (fixed fuel is used)"],
+      ["Consumption rate", (r.lit / HOURS).toFixed(1) + " Ltrs/hr (" + HOURS + "-hour shift)"], ["Exception type", t || "None (normal reading)"], ["Fuel cost of this reading", rs(r.lit * S.price)], ["Record", MODE === "db" ? "Saved in the database" : (r.live ? "Simulated live reading" : "Sample record")]];
     var h = '<dl class="rec-grid">' + rows.map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("") + "</dl>";
     var hist = "";
     if (r.enteredBy) hist += "Entered by " + esc(r.enteredBy) + ". ";
@@ -610,7 +612,7 @@
     if (MODE === "db") {
       if (v.cons !== undefined && v.cons !== null && hasConsumed === false) { var e1 = new Error("The database has no consumed_litres column yet."); showError("saving the reading", e1, hintFor(e1.message)); done(e1); return; }
       if (hasType === false) { var e0 = new Error("The database has no exception_type column yet."); showError("saving the reading", e0, hintFor(e0.message)); done(e0); return; }
-      var payload = { reading_date: v.date, mine: m.mine, vehicle_type: m.vtype, vehicle_no: m.no, shift: v.shift, expected_litres: m.litres, km: m.km, exception_type: type, status: status };
+      var payload = { reading_date: v.date, mine: m.mine, vehicle_type: m.vtype, vehicle_no: m.no, shift: v.shift, expected_litres: m.litres, exception_type: type, status: status };
       if (v.cons !== undefined && v.cons !== null) payload.consumed_litres = v.cons;
       var send = function (withAudit) {
         var p = Object.assign({}, payload); if (withAudit) p.entered_by = by;
@@ -630,7 +632,7 @@
         ok(res);
       }, function (e) { showError("saving the reading", e, hintFor(String(e && e.message))); done(e); });
     } else {
-      var r = makeRec({ date: v.date, vtype: m.vtype, no: m.no, mine: m.mine, shift: v.shift, lit: (v.cons !== undefined && v.cons !== null) ? v.cons : m.litres, fixed: m.litres, cons: (v.cons !== undefined && v.cons !== null), km: m.km, type: type, status: status, live: true, enteredBy: by });
+      var r = makeRec({ date: v.date, vtype: m.vtype, no: m.no, mine: m.mine, shift: v.shift, lit: (v.cons !== undefined && v.cons !== null) ? v.cons : m.litres, fixed: m.litres, cons: (v.cons !== undefined && v.cons !== null), type: type, status: status, live: true, enteredBy: by });
       records.push(r); afterNew([r]); done(null, r);
     }
   }
@@ -661,7 +663,7 @@
     var m = machineOf($("a-no").value), box = $("a-fixed");
     if (!m) { box.innerHTML = ""; return; }
     if (!$("a-cons").dataset.touched) $("a-cons").value = m.litres;
-    box.innerHTML = [["Type", m.vtype], ["Mine", m.mine], ["Fixed fuel", num(m.litres) + " L / shift"], ["Fixed distance", num(m.km) + " km / shift"]].map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("");
+    box.innerHTML = [["Type", m.vtype], ["Mine", m.mine], ["Fixed fuel", num(m.litres) + " L / shift"], ["Fixed rate", (m.litres / HOURS).toFixed(1) + " Ltrs/hr"]].map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("");
   }
   // Suggest High / Low Consumption from the diesel typed, compared with the vehicle's fixed litres.
   // Other types (refuelling, mileage, other) stay manual. A manual choice is never overwritten.
@@ -678,12 +680,13 @@
     var pct = (s.dev > 0 ? "+" : "") + num1(s.dev) + "% vs the fixed " + num(s.fixed) + " L";
     if (!sel.dataset.manual) {
       sel.value = s.type;
-      note.textContent = s.type ? "Suggested from the diesel consumed: " + s.type + " (" + pct + "). You can change it." : "Diesel consumed is within " + S.suggestHigh + "% above / " + S.suggestLow + "% below the fixed fuel (" + pct + "): no exception suggested.";
-    } else note.textContent = "You chose this type yourself. Diesel consumed is " + pct + ".";
+      note.textContent = s.type ? "Suggested from the actual consumed: " + s.type + " (" + pct + "). You can change it." : "Actual consumed is within " + S.suggestHigh + "% above / " + S.suggestLow + "% below the fixed fuel (" + pct + "): no exception suggested.";
+    } else note.textContent = "You chose this type yourself. Actual consumed is " + pct + ".";
   }
   function previewAdd() {
     showFixed();       // first: fixed values and the prefilled litres of the chosen vehicle
     applySuggestion(); // then: suggestion from the litres now in the box
+    var cv = parseFloat($("a-cons").value); $("a-rate").textContent = cv > 0 ? "= " + (cv / HOURS).toFixed(1) + " Ltrs/hr (" + HOURS + "-hour shift)" : "";
     var t = $("a-type").value, p = $("a-preview"); showFixed();
     if (!machineOf($("a-no").value)) { p.className = "preview"; p.textContent = "Choose a vehicle."; return; }
     if (!t) { p.className = "preview good"; p.textContent = "\u2714 Normal reading. No alert."; return; }
@@ -696,7 +699,7 @@
     $("a-date").value = todayLocal(); $("a-shift").value = SHIFTS[h >= 6 && h < 14 ? 0 : h >= 14 && h < 22 ? 1 : 2];
     $("a-cons").dataset.touched = ""; $("a-type").dataset.manual = ""; $("a-type").value = ""; $("a-msg").innerHTML = ""; previewAdd();
     $("a-cons").disabled = MODE === "db" && hasConsumed === false;
-    $("a-cons-note").textContent = $("a-cons").disabled ? "Diesel consumed cannot be saved yet. Ask the Data Keeper to run database/05-consumed-litres.sql." : "Prefilled with the vehicle's fixed fuel. Change it if this shift used a different amount.";
+    $("a-cons-note").textContent = $("a-cons").disabled ? "Actual consumed cannot be saved yet. Ask the Data Keeper to run database/05-consumed-litres.sql." : "Prefilled with the vehicle's fixed fuel. Change it if this shift used a different amount.";
     $("add-note").textContent = MODE === "db" ? "Choose the vehicle, date, shift and exception type, and enter the diesel consumed (it starts at the vehicle's fixed fuel). Distance is fixed for each vehicle. It is saved in the database and every open dashboard gets the alert. Use made-up values only." : "Demo mode: the database is not connected, so this reading is kept in this browser only.";
     openDrawer("drawer-add");
   }
@@ -710,7 +713,7 @@
       var consTxt = $("a-cons").value.trim(), cons = consTxt === "" ? null : parseFloat(consTxt);
       if ($("a-cons").disabled) cons = null;   // column missing (05 not run): the fixed litres are used
       var v = { date: $("a-date").value, shift: $("a-shift").value, no: $("a-no").value, type: $("a-type").value, cons: cons };
-      var miss = []; if (!v.date) miss.push("Date"); if (!v.no) miss.push("Vehicle"); if (cons !== null && !(cons > 0)) miss.push("Diesel consumed (more than 0)");
+      var miss = []; if (!v.date) miss.push("Date"); if (!v.no) miss.push("Vehicle"); if (cons !== null && !(cons > 0)) miss.push("Actual consumed (more than 0)");
       if (miss.length) { $("a-msg").innerHTML = '<p class="msg bad">Please fill in: ' + esc(miss.join(", ")) + ".</p>"; return; }
       var btn = $("a-save"); btn.disabled = true; btn.textContent = "Saving...";
       saveReading(v, function (err) {
