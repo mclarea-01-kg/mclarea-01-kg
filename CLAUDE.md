@@ -75,7 +75,7 @@
 - Tool name: Diesel Exception & Fuel Consumption Monitoring Dashboard
 - Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
 - Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
-- Table name and columns: fuel_readings (database/02, 03, 04 files): id, created_at, reading_date, mine, vehicle_type, vehicle_no, shift, expected_litres (= the vehicle's FIXED litres per shift), km (= FIXED distance per shift), exception_type ('' = normal, or High Consumption / Low Consumption / Refueling Irregularity / Mileage Mismatch / Other), status, entered_by, updated_by, updated_at. OLD columns siding, actual_litres, exception_flag still exist but are optional and unused. The older table diesel_exceptions (01-setup.sql) is NOT used any more.
+- Table name and columns: fuel_readings (database/02, 03, 04 files): id, created_at, reading_date, mine, vehicle_type, vehicle_no, shift, expected_litres (= the vehicle's FIXED litres per shift), km (= FIXED distance per shift), consumed_litres (optional: diesel typed in the Add reading form; if empty the fixed litres are used), exception_type ('' = normal, or High Consumption / Low Consumption / Refueling Irregularity / Mileage Mismatch / Other), status, entered_by, updated_by, updated_at. OLD columns siding, actual_litres, exception_flag still exist but are optional and unused. The older table diesel_exceptions (01-setup.sql) is NOT used any more.
 - Pages: index.html = home; dashboard.html = dashboard (code in overview.js; fixed litres/km per vehicle in fixed-values.js; built-in sample data in overview-data.js; user.js = who-are-you picker; styles in style.css + overview.css).
 
 ## Progress Log (newest entry at the bottom)
@@ -158,4 +158,12 @@
   open (they covered the Close button). Built-in demo data (overview-data.js) still holds the old numbers only as
   the source for the one-time type; the screens ignore them.
   Next: Data Keeper runs 04 file; test adding readings; decide if vehicle fixed values should move into the database.
+- Phase 9 (Claude, on request): the Add reading form now has a "Diesel consumed (L)" box (starts at the vehicle's fixed
+  litres, can be changed, must be more than 0 if filled). It is saved in a NEW optional column consumed_litres
+  (database/05-consumed-litres.sql; checked on a throwaway local Postgres, NOT on our Supabase). The dashboard uses the
+  typed value for consumption, cost and km/l; readings without it (all older rows) keep using the fixed litres. The
+  record window shows fixed fuel and diesel consumed. There is NO Expected-vs-Actual comparison; the exception type is
+  still chosen by the person adding the reading. If 05 has not been run, the box is switched off with a note and
+  readings still save with the fixed litres. Next: Data Keeper runs 05 file; decide if the exception type should be
+  suggested automatically from the litres typed.
 

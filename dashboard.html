@@ -180,11 +180,13 @@
   <aside class="drawer" id="drawer-add" role="dialog" aria-modal="true" aria-labelledby="dad-title" hidden>
     <div class="drawer-head"><h2 id="dad-title">Add a fuel reading</h2><button class="btn" type="button" data-close>Close</button></div>
     <p class="perm-note" id="add-perm" hidden></p>
-    <p class="note" id="add-note">Litres and distance are fixed for each vehicle. Choose the vehicle, date, shift and exception type.</p>
+    <p class="note" id="add-note">Choose the vehicle, date, shift, diesel consumed and exception type.</p>
     <form id="add-form" novalidate>
       <div class="fld two"><div><label for="a-date">Date</label><input type="date" id="a-date" required></div><div><label for="a-shift">Shift</label><select id="a-shift"><option>A Shift</option><option>B Shift</option><option>C Shift</option></select></div></div>
       <div class="fld"><label for="a-no">Vehicle</label><select id="a-no" required></select></div>
       <dl class="fixed-box" id="a-fixed" aria-label="Fixed values for the chosen vehicle"></dl>
+      <div class="fld"><label for="a-cons">Diesel consumed (L)</label><input type="number" id="a-cons" min="0" step="any" inputmode="decimal" placeholder="e.g. 360">
+        <p class="note" id="a-cons-note" style="margin:4px 0 0">Prefilled with the vehicle's fixed fuel. Change it if this shift used a different amount.</p></div>
       <div class="fld"><label for="a-type">Exception type</label>
         <select id="a-type"><option value="">None - normal reading</option><option>High Consumption</option><option>Low Consumption</option><option>Refueling Irregularity</option><option>Mileage Mismatch</option><option>Other</option></select></div>
       <p class="preview" id="a-preview" aria-live="polite">Choose a vehicle.</p>
