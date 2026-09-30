@@ -97,27 +97,8 @@
   Known: the dashboard still reads sample-data.js, not the database. Next: Data Keeper
   runs 01-setup.sql; test saving on the live site; then Phase 4 = dashboard reads the
   database.
-- Phase 3b (Claude): added a Forecast section to dashboard.html (code in forecast.js; menu link
-  "Forecast"). It forecasts next month's diesel (best / expected / worst), lists operators
-  needing retraining or counselling, and shows dumper trips possible within approved diesel.
-  Kept inside dashboard.html because of the 3-page limit. Reads sample-data.js, not the database.
-  Known: the data has NO trip counts, so "trips per shift at norm" (default 18) is a made-up
-  input on the page. Thin sample data, so treat as guidance. Next: run 01-setup.sql, test
-  saving, then make the dashboard and forecast read the database.
-- Phase 4 (Claude): dashboard.html now reads all rows from the diesel_exceptions table
-  (new file load-data.js loads them, then starts dashboard.js and forecast.js). Charts,
-  KPIs, forecast and tables are unchanged. sample-data.js is no longer used by the pages
-  (kept only as the source of the SQL sample rows). Tested only with a stand-in database.
-  Known: needs 01-setup.sql to have been run, otherwise the dashboard shows a red message with
-  the error text. Action Panel requests (inspection / retrain / lock) are still saved only in
-  the browser, not in the database. Next: test live; decide whether to store those requests.
-- Phase 5 (Claude): business-analyst checks added to dashboard.html. Money: diesel price box
-  (made-up default 95 rupees per litre, saved in the browser, NOT in the database) drives 4 cost
-  cards, an "Excess cost" column in the tables/CSV and cost lines in the forecast. Safety: 6
-  safety signals (open inspections on Critical/High machines, back-to-back shifts, no retraining
-  recorded, several operators on one machine, shift concentration, fuel points) and an ageing
-  table. 6 data-quality checks (duplicates, one operator on two machines, extreme entries, late
-  entry, No Action on large exception, closed without remark). Tested with a stand-in database.
-  Known: these are indirect signals, not proof. Sample rows show as "late" because they were
-  loaded together. Next: real diesel price; optionally add trips and hour-meter columns.
-
+- Rollback (Claude, on the team's request): the last 4 commits (forecast, dashboard reads database,
+  cost/safety checks, schema-cache line) were undone with git revert. The site is back to the Phase 3
+  state: dashboard.html uses sample-data.js; Add Record page and database/01-setup.sql are kept.
+  The undone work is still in git history (commits 8d79ffc, 77cbf2c, e570dae, 9b674a3) and can be
+  brought back by reverting this rollback commit.

@@ -17,7 +17,6 @@
         <a href="index.html">Home</a>
         <a href="entry.html">Add Record</a>
         <a href="dashboard.html" aria-current="page">Dashboard</a>
-        <a href="dashboard.html#forecast">Forecast</a>
       </nav>
     </div>
   </header>
@@ -25,7 +24,6 @@
 
   <main class="wrap">
     <div id="error-area" role="alert"></div>
-    <div class="empty-msg" id="loading">Loading records from the database...</div>
 
     <!-- FILTER BAR -->
     <section class="filters" aria-label="Filters">
@@ -46,7 +44,6 @@
         <div class="field"><label for="f-fp">Fuel issue point</label><select id="f-fp"></select></div>
         <div class="field"><label for="f-status">Inspection status</label><select id="f-status"></select></div>
         <div class="field"><label for="f-priority">Priority</label><select id="f-priority"></select></div>
-        <div class="field"><label for="f-price">Diesel price (&#8377;/litre)</label><input type="number" id="f-price" min="1" max="500" step="0.5" inputmode="decimal" title="Planning assumption used for all money figures"></div>
         <div class="field"><button class="btn block" id="f-reset" type="button">Reset filters</button></div>
       </div>
       <p class="scope" id="scope"></p>
@@ -55,9 +52,6 @@
     <!-- KPI ROW -->
     <div class="section-label">Key numbers</div>
     <section class="kpis" id="kpis" aria-label="Key performance indicators"></section>
-
-    <div class="section-label">Cost of excess diesel <span style="text-transform:none;letter-spacing:0;font-weight:400">(litres &times; the price in the filter bar &ndash; a planning assumption, not an invoice)</span></div>
-    <section class="kpis k4" id="cost-kpis" aria-label="Cost indicators"></section>
 
     <!-- MAIN ANALYSIS -->
     <div class="section-label">Main analysis</div>
@@ -126,20 +120,6 @@
       <div class="ctrl-grid" id="controls"></div>
     </section>
 
-    <div class="section-label">Safety &amp; control checks</div>
-    <section class="card">
-      <h2>Safety Signals</h2>
-      <p class="sub">Indirect signals from the fuel records. They show where to look first. They do not prove a hazard or misuse.</p>
-      <div class="ctrl-grid" id="safety-checks"></div>
-      <h3 style="font-size:15px;margin:16px 0 6px">Ageing of open inspections</h3>
-      <div id="t-ageing"></div>
-    </section>
-    <section class="card" style="margin-top:14px">
-      <h2>Data-Quality &amp; Control Checks</h2>
-      <p class="sub">Checks on the records themselves, so management can trust the numbers above.</p>
-      <div class="ctrl-grid" id="dq-checks"></div>
-    </section>
-
     <!-- MANAGEMENT ACTION -->
     <div class="section-label">Management action</div>
     <section class="grid g-side">
@@ -173,54 +153,6 @@
       </div>
     </section>
 
-    <!-- FORECAST -->
-    <div class="section-label" id="forecast">Forecast &amp; planning &ndash; next month</div>
-    <section class="card">
-      <h2>Diesel Forecast, Operator Counselling and Trip Capacity</h2>
-      <p class="sub" id="fc-sub">Uses all records in the data. It does not follow the filters above.</p>
-      <div id="fc-error" role="alert"></div>
-      <div class="filter-grid" style="margin-bottom:12px">
-        <div class="field"><label for="fc-activity">Expected activity vs last 30 days (%)</label><input type="number" id="fc-activity" value="100" min="50" max="150" step="5" inputmode="numeric"></div>
-        <div class="field"><label for="fc-trips">Dumper trips per shift at norm</label><input type="number" id="fc-trips" value="18" min="1" max="60" step="1" inputmode="numeric"></div>
-      </div>
-      <p class="note" style="margin:0 0 12px"><strong>Assumption:</strong> the records have no trip counts, so "trips per shift at norm" is a made-up planning number you can change. Activity 100% means the same number of recorded shifts as the last 30 days.</p>
-      <div class="kpis k4" id="fc-kpis"></div>
-      <details class="box" style="margin-top:14px">
-        <summary>How the forecast works (plain English)</summary>
-        <ul>
-          <li><strong>Step 1:</strong> for each machine, work out how much diesel it used compared with its norm (for example 120% = 20% above norm).</li>
-          <li><strong>Step 2:</strong> recent records count more. A record's weight halves every 10 days.</li>
-          <li><strong>Step 3:</strong> shifts next month = shifts recorded in the last 30 days, scaled to the days in next month and to the activity % above.</li>
-          <li><strong>Expected diesel</strong> = shifts &times; norm &times; weighted usage %.</li>
-          <li><strong>Best case:</strong> the exceptions are fixed and each machine runs at or below norm. <strong>Worst case:</strong> the latest 3 records show the new normal.</li>
-          <li><strong>Trips:</strong> with the same approved diesel (norm), a machine using 120% of norm can only do about 1/1.2 of the planned trips. The rest are &ldquo;lost trips&rdquo;.</li>
-          <li>This is a simple, explainable model on thin sample data. Treat it as guidance, not a promise.</li>
-        </ul>
-      </details>
-      <div class="grid g2" style="margin-top:14px">
-        <div>
-          <h3 style="font-size:15px;margin-bottom:6px">Forecast diesel by equipment type</h3>
-          <div class="chart-box short"><canvas id="ch-fc" role="img" aria-label="Grouped bar chart of approved and forecast diesel next month by equipment type"></canvas></div>
-        </div>
-        <div>
-          <h3 style="font-size:15px;margin-bottom:6px">Forecast by machine</h3>
-          <div id="t-fc-machine"></div>
-        </div>
-      </div>
-      <div class="grid g2" style="margin-top:18px">
-        <div>
-          <h3 style="font-size:15px;margin-bottom:4px">Operator counselling needed next month</h3>
-          <p class="note" style="margin:0 0 8px">Rule: 3+ exceptions or 300+ L = Retrain; 2 exceptions or 150+ L = Counsel; otherwise Monitor. A rising trend (last 10 days worse than the 20 before, at least 40 L) moves Monitor up to Counsel. If other operators also exceed norm on the same machine, inspect the machine first.</p>
-          <div id="t-fc-op"></div>
-        </div>
-        <div>
-          <h3 style="font-size:15px;margin-bottom:4px">Dumper trips possible with current situation</h3>
-          <p class="note" style="margin:0 0 8px">Trips within the approved (norm) diesel, at each dumper's current diesel use.</p>
-          <div id="t-fc-trips"></div>
-        </div>
-      </div>
-    </section>
-
     <!-- DETAIL TABLE -->
     <div class="section-label">Detail records</div>
     <section class="card">
@@ -250,9 +182,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <!-- load-data.js reads the database first, then starts dashboard.js and forecast.js -->
-  <script src="load-data.js"></script>
+  <script src="sample-data.js"></script>
+  <script src="dashboard.js"></script>
 </body>
 </html>

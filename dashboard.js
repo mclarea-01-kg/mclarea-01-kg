@@ -1,5 +1,5 @@
 /* dashboard.js - Diesel Exception Dashboard.
-   Every number on the page is worked out from window.DIESEL_DATA (loaded from the database by load-data.js).
+   Every number on the page is worked out from window.DIESEL_DATA (sample-data.js).
    Nothing is hard-coded. Plain JavaScript, no framework. */
 (function () {
   "use strict";
@@ -46,7 +46,7 @@
     return {
       id: i + 1, date: r.date, day: d, type: r.type, eq: r.eq, operator: r.operator, shift: r.shift,
       shiftSeq: d * 3 + (SHIFT_ORDER[r.shift] || 0), norm: r.norm, actual: r.actual, fuel: r.fuelPoint,
-      status: r.status, action: r.action, remarks: r.remarks, createdAt: r.createdAt || "", excess: ex, isExc: ex > 0
+      status: r.status, action: r.action, remarks: r.remarks, excess: ex, isExc: ex > 0
     };
   });
   var DATA_MIN = records.length ? Math.min.apply(null, records.map(function (r) { return r.day; })) : 0;
@@ -59,11 +59,6 @@
   var store = { inspect: {}, flag: {}, locked: {}, log: [] };
   try { var saved = JSON.parse(localStorage.getItem("mclDieselActions") || "null"); if (saved) store = saved; } catch (e) { /* private mode: fine */ }
   function saveStore() { try { localStorage.setItem("mclDieselActions", JSON.stringify(store)); } catch (e) { /* ignore */ } }
-
-  var PRICE = 95;   // made-up planning price in rupees per litre; change it in the filter bar
-  try { var sp = parseFloat(localStorage.getItem("mclDieselPrice")); if (sp > 0) PRICE = sp; } catch (e) { /* ignore */ }
-  window.DIESEL_PRICE = PRICE;
-  function rs(n) { return "\u20B9" + Math.round(n).toLocaleString("en-IN"); }
 
   var charts = {};
   var view = {};   // results of the latest calculation
@@ -104,7 +99,7 @@
     $("f-from").min = $("f-to").min = numToDate(DATA_MIN);
     $("f-from").max = $("f-to").max = numToDate(DATA_MAX);
     setPreset();
-    $("asof").textContent = "Data as on " + fmtDate(numToDate(DATA_MAX)) + ". " + (window.DIESEL_SOURCE_NOTE || "");
+    $("asof").textContent = "Data as on " + fmtDate(numToDate(DATA_MAX)) + ".";
   }
   function readFilters() {
     F.preset = $("f-preset").value;
@@ -211,10 +206,7 @@
     var ms = F.priority ? msAll.filter(function (m) { return m.level === F.priority; }) : msAll;
     var ops = operatorStats(exc, ms);
     var fps = fuelStats(exc);
-    var ratioOf = {}, tn = {}, ta = {};
-    pool.forEach(function (r) { tn[r.eq] = (tn[r.eq] || 0) + r.norm; ta[r.eq] = (ta[r.eq] || 0) + r.actual; });
-    Object.keys(tn).forEach(function (k) { ratioOf[k] = ta[k] / tn[k]; });
-    view = { pool: pool, exc: exc, ms: ms, ops: ops, fps: fps, ageRef: ageRef, ratioOf: ratioOf };
+    view = { pool: pool, exc: exc, ms: ms, ops: ops, fps: fps, ageRef: ageRef };
   }
 
   /* ================= badges / tags ================= */
@@ -410,10 +402,8 @@
         { key: "eq", label: "Equipment No.", val: function (m) { return m.eq; }, html: function (m) { return drillBtn("eq", m.eq) + machineTags(m.eq); } },
         { key: "type", label: "Type", val: function (m) { return m.type; }, html: function (m) { return esc(m.type); } },
         { key: "count", label: "Exceptions", num: 1, val: function (m) { return m.count * 100000 + m.total; }, html: function (m) { return m.count; } },
-        { key: "eff", label: "Uses norm at", num: 1, val: function (m) { return view.ratioOf[m.eq] || 0; }, html: function (m) { return pct(view.ratioOf[m.eq] || 0); } },
         { key: "days", label: "Days affected", num: 1, val: function (m) { return m.days; }, html: function (m) { return m.days; } },
         { key: "total", label: "Total excess (L)", num: 1, val: function (m) { return m.total; }, html: function (m) { return num(m.total); } },
-        { key: "cost", label: "Excess cost", num: 1, val: function (m) { return m.total; }, html: function (m) { return rs(m.total * PRICE); } },
         { key: "last", label: "Last exception", val: function (m) { return m.lastDate; }, html: function (m) { return fmtShort(m.lastDate); } },
         { key: "open", label: "Still open", num: 1, val: function (m) { return m.open; }, html: function (m) { return m.open ? badge("b-warn", "▲ " + m.open + " open") : badge("b-ok", "✔ None"); } }
       ]
@@ -429,7 +419,6 @@
         { key: "eq", label: "Equipment No.", val: function (m) { return m.eq; }, html: function (m) { return drillBtn("eq", m.eq) + machineTags(m.eq); } },
         { key: "type", label: "Type", val: function (m) { return m.type; }, html: function (m) { return esc(m.type); } },
         { key: "total", label: "Total excess (L)", num: 1, val: function (m) { return m.total; }, html: function (m) { return num(m.total); } },
-        { key: "cost", label: "Excess cost", num: 1, val: function (m) { return m.total; }, html: function (m) { return rs(m.total * PRICE); } },
         { key: "count", label: "Exceptions", num: 1, val: function (m) { return m.count; }, html: function (m) { return m.count; } },
         { key: "last", label: "Last exception", val: function (m) { return m.lastDate; }, html: function (m) { return fmtShort(m.lastDate); } },
         { key: "prio", label: "Priority", val: function (m) { return m.score * 100000 + m.total; }, html: function (m) { return levelBadge(m.level, m.score); } },
@@ -450,7 +439,6 @@
         { key: "op", label: "Operator", val: function (o) { return o.op; }, html: function (o) { return drillBtn("operator", o.op) + (store.flag[o.op] ? ' <span class="chip">Flagged</span>' : ""); } },
         { key: "count", label: "Exceptions", num: 1, val: function (o) { return o.count; }, html: function (o) { return o.count; } },
         { key: "total", label: "Total excess (L)", num: 1, val: function (o) { return o.total; }, html: function (o) { return num(o.total); } },
-        { key: "cost", label: "Excess cost", num: 1, val: function (o) { return o.total; }, html: function (o) { return rs(o.total * PRICE); } },
         { key: "avg", label: "Avg per exception (L)", num: 1, val: function (o) { return o.avg; }, html: function (o) { return num(o.avg); } },
         { key: "machines", label: "Machines", val: function (o) { return o.machines.join(); }, html: function (o) { return esc(o.machines.join(", ")); } },
         { key: "rec", label: "Recommendation", val: function (o) { return ({ Retrain: 3, Counsel: 2, Monitor: 1 })[o.rec] * 100000 + o.total; }, html: function (o) {
@@ -490,7 +478,6 @@
         { key: "fp", label: "Fuel Issue Point", val: function (f) { return f.fp; }, html: function (f) { return drillBtn("fp", f.fp); } },
         { key: "count", label: "Exceptions", num: 1, val: function (f) { return f.count; }, html: function (f) { return f.count; } },
         { key: "total", label: "Total excess (L)", num: 1, val: function (f) { return f.total; }, html: function (f) { return num(f.total) + " (" + pct(f.share) + ")"; } },
-        { key: "cost", label: "Excess cost", num: 1, val: function (f) { return f.total; }, html: function (f) { return rs(f.total * PRICE); } },
         { key: "machines", label: "Machines affected", num: 1, val: function (f) { return f.machines; }, html: function (f) { return f.machines; } },
         { key: "avg", label: "Avg per exception (L)", num: 1, val: function (f) { return f.avg; }, html: function (f) { return num(f.avg); } },
         { key: "flag", label: "Control", val: function (f) { return f.total; }, html: function (f) {
@@ -558,7 +545,6 @@
     { key: "norm", label: "Norm (L)", num: 1, val: function (r) { return r.norm; }, html: function (r) { return num(r.norm); } },
     { key: "actual", label: "Actual (L)", num: 1, val: function (r) { return r.actual; }, html: function (r) { return num(r.actual); } },
     { key: "excess", label: "Above norm (L)", num: 1, val: function (r) { return r.excess; }, html: function (r) { return r.isExc ? "<strong>" + num(r.excess) + "</strong>" : "0"; } },
-    { key: "cost", label: "Excess cost", num: 1, val: function (r) { return r.excess; }, html: function (r) { return r.isExc ? rs(r.excess * PRICE) : "\u20B90"; } },
     { key: "status", label: "Status", val: function (r) { return r.status; }, html: function (r) { return r.isExc ? statusBadge(r.status) : badge("b-mute", "Within norm"); } },
     { key: "action", label: "Action required", val: function (r) { return r.action; }, html: function (r) { return esc(r.action); } },
     { key: "remarks", label: "Remarks", val: function (r) { return r.remarks; }, html: function (r) { return esc(r.remarks); } }
@@ -575,103 +561,6 @@
       sortKey: "date", pageSize: 15, cols: DETAIL_COLS,
       empty: UI.search ? "No records match your search. Clear the search box to see all records." : "No exception records match the selected filters. Try “Reset filters” or a wider period."
     }, detailRows(), resetPage);
-  }
-
-
-  /* ================= money + safety + data-quality ================= */
-  function renderCost() {
-    var exc = view.exc, ms = view.ms;
-    var total = sum(exc, function (r) { return r.excess; });
-    var open = exc.filter(isOpen), openL = sum(open, function (r) { return r.excess; });
-    var sorted = ms.slice().sort(function (a, b) { return b.total - a.total; }), top3 = sorted.slice(0, 3);
-    var top3L = sum(top3, function (m) { return m.total; });
-    var repeat = ms.filter(function (m) { return m.count >= 2; }), repL = sum(repeat, function (m) { return m.total; });
-    var end = dayNum(F.to), poolAll = records.filter(function (r) { return r.isExc && matchOther(r); });
-    var l7 = sum(poolAll.filter(function (r) { return r.day > end - 7 && r.day <= end; }), function (r) { return r.excess; });
-    var p7 = sum(poolAll.filter(function (r) { return r.day > end - 14 && r.day <= end - 7; }), function (r) { return r.excess; });
-    var cmp = l7 > p7 ? "▲ up from " + rs(p7 * PRICE) : l7 < p7 ? "▼ down from " + rs(p7 * PRICE) : "same as the 7 days before";
-    var perWeek = total / (dayNum(F.to) - dayNum(F.from) + 1) * 7;
-    function share(v) { return total ? v / total : 0; }
-    var cards = [
-      { t: "Cost of excess diesel", v: rs(total * PRICE), s: sev(perWeek, 250, 500), n: num(total) + " L above norm · last 7 days " + rs(l7 * PRICE) + " (" + cmp + ")" },
-      { t: "Money still open", v: rs(openL * PRICE), s: sev(share(openL) * 100, 25, 50), n: open.length + " open exception" + (open.length === 1 ? "" : "s") + " · " + pct(share(openL)) + " of the excess cost" },
-      { t: "Top 3 machines' share", v: pct(share(top3L)), s: sev(share(top3L) * 100, 40, 60), n: top3.length ? top3.map(function (m) { return m.eq; }).join(", ") + " = " + rs(top3L * PRICE) : "No exceptions in view" },
-      { t: "Avoidable if repeat machines are fixed", v: rs(repL * PRICE), s: sev(share(repL) * 100, 25, 50), n: repeat.length + " repeat machine" + (repeat.length === 1 ? "" : "s") + " · " + pct(share(repL)) + " of the excess cost" }
-    ];
-    $("cost-kpis").innerHTML = cards.map(function (x) {
-      return '<div class="kpi s-' + x.s + '"><div class="k-title">' + esc(x.t) + '</div><div class="k-value">' + esc(x.v) + "</div><div>" + sevBadge(x.s) + '</div><div class="k-note">' + esc(x.n) + "</div></div>";
-    }).join("");
-  }
-
-  function examples(arr, n) { return arr.length > n ? arr.slice(0, n).join("; ") + "; and " + (arr.length - n) + " more" : arr.join("; "); }
-  function check(title, sevIfFound, items, okText, foundText) {
-    var s = items.length ? sevIfFound : "ok";
-    var b = s === "crit" ? badge("b-crit", "■ " + items.length + " found") : s === "warn" ? badge("b-warn", "▲ " + items.length + " found") : badge("b-ok", "✔ None found");
-    return '<div class="ctrl"><h3>' + esc(title) + "</h3>" + b + "<p>" + esc(items.length ? foundText + " " + examples(items, 4) + "." : okText) + "</p></div>";
-  }
-
-  function renderSafety() {
-    var exc = view.exc, ms = view.ms, pool = view.pool, ageRef = view.ageRef, ops = view.ops, fps = view.fps;
-    var s = [];
-    var risky = ms.filter(function (m) { return (m.level === "Critical" || m.level === "High") && m.oldestOpenAge >= 3; })
-      .map(function (m) { return m.eq + " (" + m.level + ", open " + m.oldestOpenAge + " days)"; });
-    s.push(check("Critical/High machines with an inspection open 3+ days", "crit", risky, "No such machine in this view.", "Possible leak or engine fault left unattended. Decide whether to stop, restrict or inspect:"));
-    // back-to-back shifts by the same operator
-    var byOp = {}; pool.forEach(function (r) { (byOp[r.operator] = byOp[r.operator] || []).push(r); });
-    var b2b = [];
-    Object.keys(byOp).sort().forEach(function (op) {
-      var l = byOp[op].slice().sort(function (a, b) { return a.shiftSeq - b.shiftSeq; });
-      for (var i = 1; i < l.length; i++) if (l[i].shiftSeq - l[i - 1].shiftSeq === 1) b2b.push(op + " " + l[i - 1].shift.charAt(0) + "→" + l[i].shift.charAt(0) + " on " + fmtShort(l[i].date));
-    });
-    s.push(check("Same operator on back-to-back shifts", "warn", b2b, "No operator worked back-to-back shifts in this view.", "Possible fatigue risk (16+ hours on duty):"));
-    var noCounsel = ops.filter(function (o) { return (o.rec === "Retrain" || o.rec === "Counsel") && !o.list.some(function (r) { return r.action === "Retrain Operator"; }); })
-      .map(function (o) { return o.op + " (" + o.count + " exceptions)"; });
-    s.push(check("Repeat-exception operators with no retraining action recorded", "warn", noCounsel, "Every repeat operator has a retraining action recorded.", "Nothing recorded yet for:"));
-    var multi = ms.filter(function (m) { return m.count >= 2 && m.ops.length >= 2; }).map(function (m) { return m.eq + " (" + m.ops.join(", ") + ")"; });
-    s.push(check("Machines where several operators exceed norm", "warn", multi, "No machine shows this pattern.", "Points to the machine, not the operator (leaks, injectors, engine load). Inspect:"));
-    var sh = ["A Shift", "B Shift", "C Shift"].map(function (x) { return { s: x, n: exc.filter(function (r) { return r.shift === x; }).length }; }).sort(function (a, b) { return b.n - a.n; });
-    var shiftItems = exc.length >= 5 && sh[0].n / exc.length >= 0.45 ? [sh[0].s + " has " + sh[0].n + " of " + exc.length + " exceptions"] : [];
-    s.push(check("One shift carrying most exceptions", "warn", shiftItems, "Exceptions are spread fairly evenly across shifts.", "Possible supervision or fatigue gap:"));
-    var fp = fps.filter(function (f) { return f.flag === "Tighten control" || f.flag === "Watch"; }).map(function (f) { return f.fp + " (" + pct(f.share) + " of excess, " + f.flag.toLowerCase() + ")"; });
-    s.push(check("Refuelling points with high excess", "warn", fp, "No fuel point stands out.", "Check handling and controls at:"));
-    $("safety-checks").innerHTML = s.join("");
-
-    var buckets = [{ order: 1, label: "0–2 days", lo: 0, hi: 2 }, { order: 2, label: "3–6 days", lo: 3, hi: 6 }, { order: 3, label: "7–13 days", lo: 7, hi: 13 }, { order: 4, label: "14+ days", lo: 14, hi: 9999 }];
-    var open = exc.filter(isOpen);
-    buckets.forEach(function (b) {
-      b.list = open.filter(function (r) { var a = Math.max(0, ageRef - r.day); return a >= b.lo && a <= b.hi; });
-      b.litres = sum(b.list, function (r) { return r.excess; });
-      b.machines = uniq(b.list.map(function (r) { return r.eq; })).sort();
-    });
-    renderTable("t-ageing", {
-      sortKey: "order", sortDir: "asc", empty: "No open inspections in this view.",
-      cols: [
-        { key: "order", label: "Open for", val: function (b) { return b.order; }, html: function (b) { return (b.order >= 3 ? badge(b.order === 4 ? "b-crit" : "b-warn", "▲ " + b.label) : badge("b-info", b.label)); } },
-        { key: "n", label: "Open exceptions", num: 1, val: function (b) { return b.list.length; }, html: function (b) { return b.list.length; } },
-        { key: "l", label: "Excess (L)", num: 1, val: function (b) { return b.litres; }, html: function (b) { return num(b.litres); } },
-        { key: "c", label: "Excess cost", num: 1, val: function (b) { return b.litres; }, html: function (b) { return rs(b.litres * PRICE); } },
-        { key: "m", label: "Machines", val: function (b) { return b.machines.join(); }, html: function (b) { return b.machines.length ? esc(b.machines.join(", ")) : "–"; } }
-      ]
-    }, open.length ? buckets : [], true);
-
-    // data quality (uses every record in the selected view, exceptions or not)
-    var d = [];
-    var keyCount = {}; pool.forEach(function (r) { var k = r.eq + "|" + r.date + "|" + r.shift; (keyCount[k] = keyCount[k] || []).push(r); });
-    var dup = Object.keys(keyCount).filter(function (k) { return keyCount[k].length > 1; }).map(function (k) { var r = keyCount[k][0]; return r.eq + " " + fmtShort(r.date) + " " + r.shift + " (" + keyCount[k].length + " records)"; });
-    d.push(check("Duplicate records", "warn", dup, "No machine has two records for the same shift.", "Same machine, date and shift entered more than once:"));
-    var opShift = {}; pool.forEach(function (r) { var k = r.operator + "|" + r.date + "|" + r.shift; (opShift[k] = opShift[k] || []).push(r); });
-    var two = Object.keys(opShift).filter(function (k) { return uniq(opShift[k].map(function (r) { return r.eq; })).length > 1; }).map(function (k) { var l = opShift[k]; return l[0].operator + " " + fmtShort(l[0].date) + " " + l[0].shift + " (" + uniq(l.map(function (r) { return r.eq; })).join(" and ") + ")"; });
-    d.push(check("One operator on two machines in the same shift", "warn", two, "None found.", "Check the operator ID or the entry:"));
-    var out = pool.filter(function (r) { return r.actual === 0 || r.actual >= 1.5 * r.norm; }).map(function (r) { return r.eq + " " + fmtShort(r.date) + " (" + num(r.actual) + " L vs norm " + num(r.norm) + ")"; });
-    d.push(check("Impossible or extreme entries", "crit", out, "No zero or extreme (150%+ of norm) entries.", "Possible typing error or serious excess:"));
-    var late = pool.filter(function (r) { return r.createdAt && dayNum(String(r.createdAt).slice(0, 10)) - r.day > 2; });
-    var maxLate = late.length ? Math.max.apply(null, late.map(function (r) { return dayNum(String(r.createdAt).slice(0, 10)) - r.day; })) : 0;
-    d.push(check("Records entered late (more than 2 days after the record date)", "warn", late.length ? [late.length + " record" + (late.length === 1 ? "" : "s") + ", up to " + maxLate + " days late"] : [], "All records were entered within 2 days.", "Late entry weakens early detection. Note: the made-up sample rows were loaded in one go, so they show as late. "));
-    var noAct = exc.filter(function (r) { return r.action === "No Action" && r.excess >= 50; }).map(function (r) { return r.eq + " " + fmtShort(r.date) + " (" + num(r.excess) + " L)"; });
-    d.push(check("Large exception with “No Action”", "warn", noAct, "None found.", "Confirm that no action is right:"));
-    var noRem = exc.filter(function (r) { return r.status === "Closed" && r.excess >= 100 && !String(r.remarks).trim(); }).map(function (r) { return r.eq + " " + fmtShort(r.date) + " (" + num(r.excess) + " L)"; });
-    d.push(check("Closed high exception with no remark", "warn", noRem, "None found.", "Add the reason for closing:"));
-    $("dq-checks").innerHTML = d.join("");
   }
 
   /* ================= drill-down ================= */
@@ -744,10 +633,10 @@
   function downloadCsv() {
     try {
       var rows = detailRows(), t = tables["t-detail"];
-      var head = ["Date", "Equipment Type", "Equipment No", "Operator", "Shift", "Norm (L)", "Actual (L)", "Litres Above Norm", "Excess Cost (Rs)", "Fuel Issue Point", "Inspection Status", "Action Required", "Remarks"];
+      var head = ["Date", "Equipment Type", "Equipment No", "Operator", "Shift", "Norm (L)", "Actual (L)", "Litres Above Norm", "Fuel Issue Point", "Inspection Status", "Action Required", "Remarks"];
       var lines = [head.join(",")];
       rows.forEach(function (r) {
-        lines.push([r.date, r.type, r.eq, r.operator, r.shift, r.norm, r.actual, r.excess, Math.round(r.excess * PRICE), r.fuel, r.status, r.action, r.remarks].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(","));
+        lines.push([r.date, r.type, r.eq, r.operator, r.shift, r.norm, r.actual, r.excess, r.fuel, r.status, r.action, r.remarks].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(","));
       });
       var blob = new Blob([lines.join("\n")], { type: "text/csv" });
       var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "diesel-exceptions-sample.csv";
@@ -760,9 +649,9 @@
     try {
       $("error-area").innerHTML = "";
       compute();
-      renderScope(); renderKpis(); renderCost(); renderTypeChart(); renderTrendChart();
+      renderScope(); renderKpis(); renderTypeChart(); renderTrendChart();
       renderRepeat(); renderInspect(); renderOperators(); renderFuelPoints();
-      renderControls(); renderSafety(); renderMgmt(); renderPanel(); renderDetail(resetPage);
+      renderControls(); renderMgmt(); renderPanel(); renderDetail(resetPage);
     } catch (e) { showError("drawing the dashboard", e); if (window.console) console.error(e); }
   }
 
@@ -773,13 +662,6 @@
         if ((id === "f-from" || id === "f-to")) $("f-preset").value = "custom";
         readFilters(); renderAll(true);
       });
-    });
-    $("f-price").value = PRICE;
-    $("f-price").addEventListener("input", function () {
-      var v = parseFloat(this.value); if (!(v > 0)) return;
-      PRICE = v; window.DIESEL_PRICE = v;
-      try { localStorage.setItem("mclDieselPrice", String(v)); } catch (e) { /* ignore */ }
-      renderAll(false); if (window.DIESEL_FC_RENDER) window.DIESEL_FC_RENDER();
     });
     $("f-reset").addEventListener("click", function () {
       $("f-preset").value = "30"; ["f-type", "f-eq", "f-op", "f-shift", "f-fp", "f-status", "f-priority"].forEach(function (id) { $(id).value = ""; });
@@ -845,7 +727,7 @@
     if (typeof Chart === "undefined") {
       showError("loading the chart library", "Chart.js could not be loaded from cdn.jsdelivr.net. Tables and numbers still work; charts are hidden. Check the internet connection.");
     }
-    if (!records.length) { showError("loading the records", "The database has no records yet. Add one on the Add Record page (or ask the Data Keeper to run database/01-setup.sql)."); return; }
+    if (!records.length) { showError("loading the sample data", "No records found in sample-data.js"); return; }
     try { initFilters(); bind(); } catch (e) { showError("setting up the filters", e); return; }
     var err = $("error-area").innerHTML;
     renderAll(true);
