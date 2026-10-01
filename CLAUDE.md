@@ -75,7 +75,7 @@
 - Tool name: Diesel Exception & Fuel Consumption Monitoring Dashboard
 - Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
 - Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
-- Table name and columns: fuel_readings (database/02, 03, 04 files): id, created_at, reading_date, mine, vehicle_type, vehicle_no, shift, expected_litres (= the vehicle's FIXED litres per shift), consumed_litres (optional: diesel typed in the Add reading form; if empty the fixed litres are used), exception_type ('' = normal, or High Consumption / Low Consumption / Refueling Irregularity / Mileage Mismatch / Other), status, entered_by, updated_by, updated_at. OLD columns siding, actual_litres, exception_flag still exist but are optional and unused. The older table diesel_exceptions (01-setup.sql) is NOT used any more.
+- Table name and columns: fuel_readings (database/02, 03, 04 files): id, created_at, reading_date, mine, vehicle_type, vehicle_no, shift, expected_litres (= the vehicle's FIXED litres per shift), working_hours (optional; typed in the Add reading form, required there; database/08-working-hours.sql), consumed_litres (optional: diesel typed in the Add reading form; if empty the fixed litres are used), exception_type ('' = normal, or High Consumption / Low Consumption / Refueling Irregularity / Mileage Mismatch / Other), status, entered_by, updated_by, updated_at. OLD columns siding, actual_litres, exception_flag still exist but are optional and unused. The older table diesel_exceptions (01-setup.sql) is NOT used any more.
 - Pages (3, the maximum): index.html = home (open); login.html = sign in (open); dashboard.html = dashboard (login needed). Code: auth.js = login and roles (all pages); overview.js = dashboard; fixed-values.js = fixed litres per vehicle; overview-data.js = built-in demo data; styles in style.css + overview.css. (user.js no longer exists.)
 
 ## Progress Log (newest entry at the bottom)
@@ -206,4 +206,14 @@
   "Allow new users to sign up"; create each user (Add user > Create new user, tick Auto Confirm); edit and run 07.
   (2) Merge to main so the new site goes live. (3) Run 06 to lock the data. Known: password reset is done by the Data
   Keeper in Supabase; settings like alert rules are still per browser; "Never delete" rule unchanged.
+- Phase 15 (Claude, on request): WORKING HOURS are no longer fixed. Add reading has a required "Working hours (hrs)" box
+  (more than 0, up to 24), saved in a NEW optional column working_hours (database/08-working-hours.sql; checked on a
+  throwaway local Postgres, NOT on our Supabase). Ltrs/hr = actual litres / the hours typed (shown live in the form). The
+  old 8-hour assumption (SHIFT_HOURS) is gone; fixed-values.js now has NORM_HOURS = 8 only to give each vehicle's NORM
+  rate (fixed litres / 8, shown as "Norm rate"). The exception-type suggestion compares the typed Ltrs/hr with the norm
+  rate when hours are typed. The Ltrs/hr chart, the trend line, the details table (new columns Hours and Ltrs/hr), the
+  record window and the CSV use the typed hours; older readings have no hours and are left out of Ltrs/hr (the chart
+  says so when nothing has hours yet). If 08 has not been run, new readings cannot be saved and a yellow note says so.
+  Tested with a stand-in database only. Next: Data Keeper runs 08 file; decide if old sample rows should get made-up
+  hours so the Ltrs/hr chart is not empty in demos.
 

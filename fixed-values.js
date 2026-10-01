@@ -2,8 +2,9 @@
 // A reading only records the date, the shift, the vehicle and the exception type.
 // Fixed litres always come from this list. The actual diesel consumed can be typed in the Add reading form.
 //   litres = fixed diesel per shift (Ltrs)
-// Ltrs/hr = litres divided by the shift length below (every shift counts as exactly 8 hours).
-window.SHIFT_HOURS = 8;
+// The fixed litres are the NORM for an 8-hour shift (so the norm rate is litres / 8 Ltrs/hr).
+// The real WORKING HOURS of each reading are typed in the Add reading form (they are not fixed).
+window.NORM_HOURS = 8;
 // To add or change a vehicle: edit this list (keep the same layout), then save and publish.
 window.FIXED_VEHICLES = [
   { no: "HD-01", vtype: "H.E. Dumpers", mine: "Mine A", litres: 360 },

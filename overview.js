@@ -39,7 +39,7 @@
 
   var SHIFTS = ["A Shift", "B Shift", "C Shift"];
   var TYPE_ORDER = ["H.E. Dumpers", "Tippers", "Excavators", "Dozers", "Graders", "Others"];
-  var HOURS = window.SHIFT_HOURS || 8;   // every shift counts as 8 hours, so Ltrs/hr = litres / 8
+  var NORM_HOURS = window.NORM_HOURS || 8;   // the fixed litres are the norm for 8 working hours (norm rate = litres / 8). Real working hours are typed in.
   var FIXED = {};   // fixed litres per vehicle (fixed-values.js)
   (window.FIXED_VEHICLES || []).forEach(function (v) { FIXED[v.no] = v; });
 
@@ -57,6 +57,7 @@
   var hasAudit = null;   // null = unknown, true/false once we know whether the audit columns (03 SQL file) exist
   var hasType = null;    // same for the exception_type column (04 SQL file)
   var hasConsumed = null; // same for the consumed_litres column (05 SQL file)
+  var hasHours = null;    // same for the working_hours column (08 SQL file)
   var MODE = "demo", db = null, channel = null, pollTimer = null, lastCreated = "", connState = "demo", dbIds = {};
   var records = [], machines = [], mineList = [], typeList = TYPE_ORDER.slice();
   var DATA_MIN = 0, DATA_MAX = 0;
@@ -70,7 +71,7 @@
   // fixed litres, vehicle type and mine always come from the fixed list when the vehicle is known
   function withFixed(o) { var fx = FIXED[o.no]; if (fx) { o.vtype = fx.vtype; o.mine = fx.mine; o.lit = fx.litres; o.fixed = fx.litres; } return o; }
   function makeRec(o) {
-    return { id: records.length, date: o.date, day: dayNum(o.date), no: o.no, vtype: o.vtype, mine: o.mine, shift: o.shift, lit: o.lit, fixed: o.fixed !== undefined ? o.fixed : o.lit, cons: !!o.cons,
+    return { id: records.length, date: o.date, day: dayNum(o.date), no: o.no, vtype: o.vtype, mine: o.mine, shift: o.shift, lit: o.lit, fixed: o.fixed !== undefined ? o.fixed : o.lit, cons: !!o.cons, hrs: (o.hrs > 0 ? Number(o.hrs) : null),
       type: o.type || "", status: o.status, dbId: o.dbId || null, live: !!o.live, enteredBy: o.enteredBy || "", updatedBy: o.updatedBy || "", updatedAt: o.updatedAt || "" };
   }
   function recFromDb(row) {
@@ -78,6 +79,7 @@
     var o = withFixed({ date: String(row.reading_date).slice(0, 10), vtype: row.vehicle_type, no: row.vehicle_no, mine: row.mine, shift: row.shift,
       lit: Number(row.expected_litres), type: typ, status: row.status, dbId: row.id, enteredBy: row.entered_by, updatedBy: row.updated_by, updatedAt: row.updated_at });
     if (row.consumed_litres !== null && row.consumed_litres !== undefined && row.consumed_litres !== "") { o.lit = Number(row.consumed_litres); o.cons = true; }   // diesel typed in the Add reading form
+    if (row.working_hours !== null && row.working_hours !== undefined && row.working_hours !== "") o.hrs = Number(row.working_hours);   // working hours typed in the Add reading form
     return makeRec(o);
   }
   function loadDemo() {
@@ -174,8 +176,9 @@
     view = { from: from, to: to, span: span, pool: pool, prev: prev, exc: excOf(pool), prevExc: excOf(prev) };
   }
   function delta(cur, prev) { return prev > 0 ? (cur - prev) / prev * 100 : null; }
-  // average fuel consumption rate in Ltrs/hr: litres divided by the hours of all the shifts in the list
-  function rateOf(list) { return list.length ? sum(list, function (r) { return r.lit; }) / (list.length * HOURS) : 0; }
+  // Ltrs/hr = litres divided by the WORKING HOURS that were typed in. Readings without hours are left out.
+  function withHours(list) { return list.filter(function (r) { return r.hrs > 0; }); }
+  function rateOf(list) { var w = withHours(list), h = sum(w, function (r) { return r.hrs; }); return h ? sum(w, function (r) { return r.lit; }) / h : 0; }
 
   /* ================= icons ================= */
   var ICON = {
@@ -240,7 +243,7 @@
       ctx.font = "600 12px " + FONT; ctx.textBaseline = "top"; ctx.fillText("Exceptions", m0.x, m0.y + 8); ctx.restore();
     }
   };
-  function toggleEmpty(id, show) { $(id).hidden = !show; }
+  function toggleEmpty(id, show, text) { var el = $(id); el.hidden = !show; if (show && text) el.textContent = text; }
   function upsert(key, cfg) {
     if (typeof Chart === "undefined") return;
     if (!charts[key]) { charts[key] = new Chart($("ch-" + key), cfg); return; }
@@ -258,18 +261,18 @@
       if (g === "week") return d - ((d + 3) % 7);
       var dt = new Date(d * 86400000); return dt.getUTCFullYear() * 12 + dt.getUTCMonth();
     }
-    var order = [], lit = {}, cnt = {}, label = {};
+    var order = [], lit = {}, lh = {}, hh = {}, label = {};
     for (var d = from; d <= to; d++) {
       var k = key(d);
       if (lit[k] === undefined) {
-        lit[k] = 0; cnt[k] = 0; order.push(k);
+        lit[k] = 0; lh[k] = 0; hh[k] = 0; order.push(k);
         label[k] = g === "day" ? fmtShort(numToDate(d)) : g === "week" ? "Wk " + fmtShort(numToDate(k)) : MON[k % 12] + " " + Math.floor(k / 12);
       }
     }
-    view.pool.forEach(function (r) { var k = key(r.day); lit[k] += r.lit; cnt[k]++; });
+    view.pool.forEach(function (r) { var k = key(r.day); lit[k] += r.lit; if (r.hrs > 0) { lh[k] += r.lit; hh[k] += r.hrs; } });
     var labels = order.map(function (k) { return label[k]; });
     var cons = order.map(function (k) { return lit[k]; });
-    var eff = order.map(function (k) { return cnt[k] ? Math.round(lit[k] / (cnt[k] * HOURS) * 10) / 10 : null; });
+    var eff = order.map(function (k) { return hh[k] ? Math.round(lh[k] / hh[k] * 10) / 10 : null; });
     toggleEmpty("empty-trend", !sum(cons, function (x) { return x; }));
     upsert("trend", { type: "bar", data: { labels: labels, datasets: [
       { type: "bar", label: "Diesel Consumed (L)", data: cons, backgroundColor: "#0b57c7", borderRadius: 3, yAxisID: "y", showLabels: true, order: 2 },
@@ -298,8 +301,8 @@
   }
 
   function renderEff() {
-    var rows = typeList.map(function (t) { var l = view.pool.filter(function (r) { return r.vtype === t; }); return [t, rateOf(l), l.length]; }).filter(function (r) { return r[2]; }).sort(function (a, b) { return b[1] - a[1]; });
-    toggleEmpty("empty-eff", !rows.length);
+    var rows = typeList.map(function (t) { var l = view.pool.filter(function (r) { return r.vtype === t; }); return [t, rateOf(l), withHours(l).length]; }).filter(function (r) { return r[2]; }).sort(function (a, b) { return b[1] - a[1]; });
+    toggleEmpty("empty-eff", !rows.length, "No working hours entered yet. Type the working hours in Add reading to see Ltrs/hr.");
     upsert("eff", { type: "bar", data: { labels: rows.map(function (r) { return r[0]; }), datasets: [{ label: "Ltrs/hr", data: rows.map(function (r) { return Math.round(r[1] * 10) / 10; }), backgroundColor: "#0b57c7", borderRadius: 3, showLabels: true, labelFmt: function (v) { return v.toFixed(1); } }] },
       options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: "Ltrs/hr" } }, x: { grid: { display: false } } } }, plugins: [labelPlugin] });
   }
@@ -331,6 +334,8 @@
     { key: "vtype", label: "Equipment", val: function (r) { return r.vtype; }, html: function (r) { return esc(r.vtype); } },
     { key: "shift", label: "Shift", val: function (r) { return r.shift; }, html: function (r) { return esc(r.shift); } },
     { key: "lit", label: "Fuel (L)", num: 1, val: function (r) { return r.lit; }, html: function (r) { return num(r.lit); } },
+    { key: "hrs", label: "Hours", num: 1, val: function (r) { return r.hrs || 0; }, html: function (r) { return r.hrs ? num1(r.hrs) : "\u2013"; } },
+    { key: "rate", label: "Ltrs/hr", num: 1, val: function (r) { return r.hrs ? r.lit / r.hrs : 0; }, html: function (r) { return r.hrs ? (r.lit / r.hrs).toFixed(1) : "\u2013"; } },
     { key: "type", label: "Exception Type", val: function (r) { return r._t || ""; }, html: function (r) { return esc(r._t || ""); } },
     { key: "status", label: "Status", val: function (r) { return STATUSES.indexOf(statusOf(r)); }, html: function (r) { var s = statusOf(r); return '<span class="status-pill st-' + s.replace(/ /g, "-") + '">' + esc(s) + "</span>"; } }
   ];
@@ -423,7 +428,7 @@
     var t = r._t || excType(r);
     $("rec-title").textContent = r.no + " – " + r.vtype + " · " + fmtDate(r.date);
     var rows = [["Mine", r.mine], ["Shift", r.shift], ["Fixed fuel", num(r.fixed) + " L"], ["Actual litres", r.cons ? num1(r.lit) + " Ltrs (recorded)" : "not recorded (fixed fuel is used)"],
-      ["Consumption rate", (r.lit / HOURS).toFixed(1) + " Ltrs/hr (" + HOURS + "-hour shift)"], ["Exception type", t || "None (normal reading)"], ["Fuel cost of this reading", rs(r.lit * S.price)], ["Record", MODE === "db" ? "Saved in the database" : (r.live ? "Simulated live reading" : "Sample record")]];
+      ["Working hours", r.hrs ? num1(r.hrs) + " hrs" : "not entered"], ["Consumption rate", r.hrs ? (r.lit / r.hrs).toFixed(1) + " Ltrs/hr" : "needs working hours"], ["Exception type", t || "None (normal reading)"], ["Fuel cost of this reading", rs(r.lit * S.price)], ["Record", MODE === "db" ? "Saved in the database" : (r.live ? "Simulated live reading" : "Sample record")]];
     var h = '<dl class="rec-grid">' + rows.map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("") + "</dl>";
     var hist = "";
     if (r.enteredBy) hist += "Entered by " + esc(r.enteredBy) + ". ";
@@ -501,6 +506,7 @@
 
   /* ---- new readings: real (database) or simulated (demo mode) ---- */
   function hintFor(msg) {
+    if (/working_hours/i.test(msg)) return " The database needs one more small update to save working hours. Ask the Data Keeper to run database/08-working-hours.sql in the Supabase SQL Editor.";
     if (/consumed_litres/i.test(msg)) return " The database needs one more small update to save actual litres. Ask the Data Keeper to run database/05-consumed-litres.sql in the Supabase SQL Editor.";
     if (/exception_type|null value in column/i.test(msg)) return " The database needs one more small update. Ask the Data Keeper to run database/04-fixed-readings.sql in the Supabase SQL Editor.";
     if (/relation .* does not exist|schema cache|Could not find the table/i.test(msg)) return " The table may not exist yet. Ask the Data Keeper to run database/02-fuel-readings.sql in the Supabase SQL Editor.";
@@ -582,11 +588,17 @@
       var p = Math.random();
       type = p < 0.6 ? EXC_TYPES[0] : p < 0.75 ? EXC_TYPES[1] : p < 0.9 ? EXC_TYPES[2] : EXC_TYPES[3];
     }
-    return { date: MODE === "db" ? todayLocal() : numToDate(DATA_MAX), shift: shift, no: m.no, type: type, system: true };
+    return { date: MODE === "db" ? todayLocal() : numToDate(DATA_MAX), shift: shift, no: m.no, type: type, hrs: Math.round(rnd(6, 8.5) * 2) / 2, system: true };
   }
   function tick(forceExc) { saveReading(makeDemoReading(forceExc), function () {}); }
 
   function isAuditError(msg) { return /entered_by|updated_by|updated_at/i.test(String(msg || "")); }
+  function noteHours() {
+    var el = $("source-banner"); if (!el || el.querySelector(".hours-note")) return;
+    var d = document.createElement("div"); d.className = "banner demo hours-note";
+    d.innerHTML = "<strong>Working hours cannot be saved yet.</strong> Ask the Data Keeper to run database/08-working-hours.sql. Until then new readings cannot be saved, and Ltrs/hr has no hours to use.";
+    el.appendChild(d);
+  }
   function noteType() {
     var el = $("source-banner"); if (!el || el.querySelector(".type-note")) return;
     var d = document.createElement("div"); d.className = "banner demo type-note";
@@ -607,8 +619,9 @@
     var type = v.type || "", status = type ? "Open" : "Closed", by = v.system ? "Demo feed" : who();
     if (MODE === "db") {
       if (v.cons !== undefined && v.cons !== null && hasConsumed === false) { var e1 = new Error("The database cannot save actual litres yet (no consumed_litres column)."); showError("saving the reading", e1, hintFor(e1.message)); done(e1); return; }
+      if (hasHours === false) { var e2 = new Error("The database has no working_hours column yet."); showError("saving the reading", e2, hintFor(e2.message)); done(e2); return; }
       if (hasType === false) { var e0 = new Error("The database has no exception_type column yet."); showError("saving the reading", e0, hintFor(e0.message)); done(e0); return; }
-      var payload = { reading_date: v.date, mine: m.mine, vehicle_type: m.vtype, vehicle_no: m.no, shift: v.shift, expected_litres: m.litres, exception_type: type, status: status };
+      var payload = { reading_date: v.date, mine: m.mine, vehicle_type: m.vtype, vehicle_no: m.no, shift: v.shift, expected_litres: m.litres, exception_type: type, status: status, working_hours: v.hrs };
       if (v.cons !== undefined && v.cons !== null) payload.consumed_litres = v.cons;
       var send = function (withAudit) {
         var p = Object.assign({}, payload); if (withAudit) p.entered_by = by;
@@ -628,7 +641,7 @@
         ok(res);
       }, function (e) { showError("saving the reading", e, hintFor(String(e && e.message))); done(e); });
     } else {
-      var r = makeRec({ date: v.date, vtype: m.vtype, no: m.no, mine: m.mine, shift: v.shift, lit: (v.cons !== undefined && v.cons !== null) ? v.cons : m.litres, fixed: m.litres, cons: (v.cons !== undefined && v.cons !== null), type: type, status: status, live: true, enteredBy: by });
+      var r = makeRec({ date: v.date, vtype: m.vtype, no: m.no, mine: m.mine, shift: v.shift, hrs: v.hrs, lit: (v.cons !== undefined && v.cons !== null) ? v.cons : m.litres, fixed: m.litres, cons: (v.cons !== undefined && v.cons !== null), type: type, status: status, live: true, enteredBy: by });
       records.push(r); afterNew([r]); done(null, r);
     }
   }
@@ -661,7 +674,7 @@
     if (!$("a-cons").dataset.touched) $("a-cons").value = m.litres;
     var dl = function (a) { return a.map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join(""); };
     box.innerHTML = dl([["Type", m.vtype], ["Mine", m.mine]]);
-    $("a-fuel").innerHTML = dl([["Fixed fuel", num(m.litres) + " L"], ["Fixed rate", (m.litres / HOURS).toFixed(1) + " Ltrs/hr"]]);
+    $("a-fuel").innerHTML = dl([["Fixed fuel", num(m.litres) + " L"], ["Norm rate", (m.litres / NORM_HOURS).toFixed(1) + " Ltrs/hr"]]);
   }
   // Suggest High / Low Consumption from the diesel typed, compared with the vehicle's fixed litres.
   // Other types (refuelling, mileage, other) stay manual. A manual choice is never overwritten.
@@ -669,22 +682,25 @@
     var m = machineOf($("a-no").value), txt = $("a-cons").value.trim();
     if (!m || txt === "") return null;
     var c = parseFloat(txt); if (!(c > 0)) return null;
-    var dev = (c - m.litres) / m.litres * 100;
-    return { type: dev > S.suggestHigh ? "High Consumption" : dev < -S.suggestLow ? "Low Consumption" : "", dev: dev, fixed: m.litres };
+    var h = parseFloat($("a-hrs").value), dev, basis;
+    if (h > 0) { var norm = m.litres / NORM_HOURS; dev = ((c / h) - norm) / norm * 100; basis = "the norm " + norm.toFixed(1) + " Ltrs/hr"; }   // working hours typed: compare Ltrs/hr with the norm rate
+    else { dev = (c - m.litres) / m.litres * 100; basis = "the fixed " + num(m.litres) + " L"; }
+    return { type: dev > S.suggestHigh ? "High Consumption" : dev < -S.suggestLow ? "Low Consumption" : "", dev: dev, basis: basis };
   }
   function applySuggestion() {
     var s = suggestType(), note = $("a-sugg"), sel = $("a-type");
     if (!s) { note.textContent = ""; return; }
-    var pct = (s.dev > 0 ? "+" : "") + num1(s.dev) + "% vs the fixed " + num(s.fixed) + " L";
+    var pct = (s.dev > 0 ? "+" : "") + num1(s.dev) + "% vs " + s.basis;
     if (!sel.dataset.manual) {
       sel.value = s.type;
-      note.textContent = s.type ? "Suggested from the actual litres: " + s.type + " (" + pct + "). You can change it." : "Actual litres are within " + S.suggestHigh + "% above / " + S.suggestLow + "% below the fixed fuel (" + pct + "): no exception suggested.";
-    } else note.textContent = "You chose this type yourself. Actual litres are " + pct + ".";
+      note.textContent = s.type ? "Suggested from the actual litres: " + s.type + " (" + pct + "). You can change it." : "Within " + S.suggestHigh + "% above / " + S.suggestLow + "% below the norm (" + pct + "): no exception suggested.";
+    } else note.textContent = "You chose this type yourself. Consumption is " + pct + ".";
   }
   function previewAdd() {
     showFixed();       // first: fixed values and the prefilled litres of the chosen vehicle
     applySuggestion(); // then: suggestion from the litres now in the box
-    var cv = parseFloat($("a-cons").value); $("a-rate").textContent = cv > 0 ? "= " + (cv / HOURS).toFixed(1) + " Ltrs/hr (" + HOURS + "-hour shift)" : "";
+    var cv = parseFloat($("a-cons").value), hv = parseFloat($("a-hrs").value);
+    $("a-rate").textContent = (cv > 0 && hv > 0) ? "= " + (cv / hv).toFixed(1) + " Ltrs/hr (" + num1(cv) + " L over " + num1(hv) + " hrs)" : "Enter the working hours of the machine for this reading.";
     var t = $("a-type").value, p = $("a-preview"); showFixed();
     if (!machineOf($("a-no").value)) { p.className = "preview"; p.textContent = "Choose a vehicle."; return; }
     if (!t) { p.className = "preview good"; p.textContent = "\u2714 Normal reading. No alert."; return; }
@@ -695,7 +711,7 @@
     if (!USER.can("add")) return;
     var h = new Date().getHours();
     $("a-date").value = todayLocal(); $("a-shift").value = SHIFTS[h >= 6 && h < 14 ? 0 : h >= 14 && h < 22 ? 1 : 2];
-    $("a-cons").dataset.touched = ""; $("a-type").dataset.manual = ""; $("a-type").value = ""; $("a-msg").innerHTML = ""; previewAdd();
+    $("a-cons").dataset.touched = ""; $("a-type").dataset.manual = ""; $("a-type").value = ""; $("a-hrs").value = ""; $("a-msg").innerHTML = ""; previewAdd();
     $("a-cons-note").textContent = (MODE === "db" && hasConsumed === false)
       ? "You can type the actual litres here. Saving a changed amount needs database/05-consumed-litres.sql (ask the Data Keeper). Until then leave it unchanged."
       : "Starts at the vehicle's fixed fuel. Type the actual litres used in this shift.";
@@ -706,20 +722,23 @@
     $("a-no").addEventListener("change", function () { $("a-cons").dataset.touched = ""; $("a-type").dataset.manual = ""; previewAdd(); });
     $("a-type").addEventListener("change", function () { this.dataset.manual = "1"; previewAdd(); });
     $("a-cons").addEventListener("input", function () { this.dataset.touched = "1"; previewAdd(); });
+    $("a-hrs").addEventListener("input", previewAdd);
     $("add-form").addEventListener("submit", function (ev) {
       ev.preventDefault(); $("error-area").innerHTML = ""; $("a-msg").innerHTML = "";
       if (!USER.can("add")) { $("a-msg").innerHTML = '<p class="msg bad">Your role cannot add readings.</p>'; return; }
       var consTxt = $("a-cons").value.trim(), cons = consTxt === "" ? null : parseFloat(consTxt);
       if (MODE === "db" && hasConsumed === false && !$("a-cons").dataset.touched) cons = null;   // 05 not run and nothing typed: the fixed litres are used
-      var v = { date: $("a-date").value, shift: $("a-shift").value, no: $("a-no").value, type: $("a-type").value, cons: cons };
+      var hrs = parseFloat($("a-hrs").value);
+      var v = { date: $("a-date").value, shift: $("a-shift").value, no: $("a-no").value, type: $("a-type").value, cons: cons, hrs: hrs };
       var miss = []; if (!v.date) miss.push("Date"); if (!v.no) miss.push("Vehicle"); if (cons !== null && !(cons > 0)) miss.push("Actual litres (more than 0)");
+      if (!(hrs > 0 && hrs <= 24)) miss.push("Working hours (more than 0, up to 24)");
       if (miss.length) { $("a-msg").innerHTML = '<p class="msg bad">Please fill in: ' + esc(miss.join(", ")) + ".</p>"; return; }
       var btn = $("a-save"); btn.disabled = true; btn.textContent = "Saving...";
       saveReading(v, function (err) {
         btn.disabled = false; btn.textContent = "Save reading";
         if (err) { $("a-msg").innerHTML = '<p class="msg bad">The reading was NOT saved. See the red message at the top of the page.</p>'; return; }
-        $("a-msg").innerHTML = '<p class="msg">Saved: ' + esc(v.no) + ", " + esc(v.shift) + ", " + esc(fmtDate(v.date)) + (v.cons !== null ? ", " + esc(num1(v.cons)) + " L" : "") + (v.type ? ", " + esc(v.type) : ", normal") + ".</p>";
-        $("a-type").value = ""; $("a-type").dataset.manual = ""; $("a-cons").dataset.touched = ""; previewAdd();
+        $("a-msg").innerHTML = '<p class="msg">Saved: ' + esc(v.no) + ", " + esc(v.shift) + ", " + esc(fmtDate(v.date)) + (v.cons !== null ? ", " + esc(num1(v.cons)) + " L" : "") + ", " + esc(num1(v.hrs)) + " hrs" + (v.type ? ", " + esc(v.type) : ", normal") + ".</p>";
+        $("a-type").value = ""; $("a-type").dataset.manual = ""; $("a-cons").dataset.touched = ""; $("a-hrs").value = ""; previewAdd();
       });
     });
   }
@@ -774,9 +793,9 @@
   /* ================= CSV ================= */
   function downloadCsv() {
     try {
-      var head = ["Date", "Mine", "Vehicle No", "Equipment", "Shift", "Fuel (L)", "Exception Type", "Status"];
+      var head = ["Date", "Mine", "Vehicle No", "Equipment", "Shift", "Fuel (L)", "Working Hours", "Ltrs/hr", "Exception Type", "Status"];
       var lines = [head.join(",")];
-      detailRows().forEach(function (r) { lines.push([r.date, r.mine, r.no, r.vtype, r.shift, r.lit, r._t, statusOf(r)].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(",")); });
+      detailRows().forEach(function (r) { lines.push([r.date, r.mine, r.no, r.vtype, r.shift, r.lit, r.hrs || "", r.hrs ? (r.lit / r.hrs).toFixed(1) : "", r._t, statusOf(r)].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(",")); });
       var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" })); a.download = "fuel-exceptions-sample.csv";
       document.body.appendChild(a); a.click(); a.remove();
     } catch (e) { showError("downloading the CSV file", e); }
@@ -858,6 +877,7 @@
     renderAll(); startLive(); applyRole();
     if (MODE === "db" && hasAudit === false) noteAudit();
     if (MODE === "db" && hasType === false) noteType();
+    if (MODE === "db" && hasHours === false) noteHours();
   }
   function useDemo(err) {
     MODE = "demo"; loadDemo();
@@ -880,7 +900,7 @@
     var timeout = new Promise(function (_, rej) { setTimeout(function () { rej(new Error("The database did not answer within 15 seconds (timed out).")); }, 15000); });
     Promise.race([fetchAll(0, []), timeout]).then(function (rows) {
       MODE = "db"; records = []; dbIds = {}; lastCreated = "";
-      if (rows.length) { hasAudit = ("entered_by" in rows[0]); hasType = ("exception_type" in rows[0]); hasConsumed = ("consumed_litres" in rows[0]); }
+      if (rows.length) { hasAudit = ("entered_by" in rows[0]); hasType = ("exception_type" in rows[0]); hasConsumed = ("consumed_litres" in rows[0]); hasHours = ("working_hours" in rows[0]); }
       rows.forEach(function (row) { addFromDb(row); });
       var note = rows.length
         ? "<strong>Connected to the database</strong> · " + rows.length + " readings. New readings raise alerts live."
