@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in - Fuel Consumption Monitoring</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5/index.css">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="overview.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap head-row">
+      <div class="brand-wrap">
+        <div class="logos">
+          <span class="logo logo-wide"><img src="images/logo.jpg" alt="Coal India Limited and Mahanadi Coalfields Limited logos" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo-text',textContent:'Coal India Ltd | Mahanadi Coalfields Ltd'}))"></span>
+        </div>
+        <div class="brand">
+          <h1>Fuel Consumption Monitoring</h1>
+          <p>Open Cast Coal Mine &ndash; Weekly Fuel Exception Analysis</p>
+        </div>
+      </div>
+      <nav class="menu" aria-label="Main menu">
+        <a href="index.html">Home</a>
+        <a href="dashboard.html">Dashboard</a>
+      </nav>
+    </div>
+  </header>
+  <div class="sample-bar"><div class="wrap"><strong>Illustrative / Sample Data.</strong> All machines, operators and litres are made up for demonstration.</div></div>
+
+  <main class="wrap">
+    <section class="card login-card">
+      <h2>Sign in</h2>
+      <p class="sub">Use the e-mail and password your Data Keeper gave you.</p>
+      <div id="login-error" role="alert"></div>
+      <form id="login-form" novalidate>
+        <div class="field"><label for="l-email">E-mail</label><input type="email" id="l-email" autocomplete="username" inputmode="email" required></div>
+        <div class="field" style="margin-top:10px"><label for="l-pass">Password</label><input type="password" id="l-pass" autocomplete="current-password" required></div>
+        <label class="check"><input type="checkbox" id="l-show"> Show password</label>
+        <button class="btn primary big" type="submit" id="l-btn">Sign in</button>
+      </form>
+      <p class="note">Forgot your password? Ask the Data Keeper to reset it in Supabase. There is no self sign-up: accounts are created by the Data Keeper.</p>
+    </section>
+  </main>
+  <div class="wrap site-footer">Illustrative / Sample Data &ndash; made up for training. Not real MCL figures.</div>
+
+  <script>
+    (function () {
+      function $(id) { return document.getElementById(id); }
+      function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+      function hint(msg) {
+        if (/invalid login credentials/i.test(msg)) return " The e-mail or password is not right. Check both and try again.";
+        if (/email not confirmed/i.test(msg)) return " This account is not confirmed yet. Ask the Data Keeper to confirm it in Supabase (Authentication > Users).";
+        if (/signups? not allowed|disabled/i.test(msg)) return " E-mail login may be switched off in Supabase. Ask the Data Keeper.";
+        if (/failed to fetch|network/i.test(msg)) return " This looks like an internet problem. Please try again.";
+        if (/too many|rate limit/i.test(msg)) return " Too many tries. Please wait a minute and try again.";
+        return "";
+      }
+      $("l-show").addEventListener("change", function () { $("l-pass").type = this.checked ? "text" : "password"; });
+      $("login-form").addEventListener("submit", function (ev) {
+        ev.preventDefault(); $("login-error").innerHTML = "";
+        var db = window.mclDb, email = $("l-email").value.trim(), pass = $("l-pass").value;
+        if (!db) { $("login-error").innerHTML = '<div class="error-box"><strong>Sign-in is not ready.</strong> Please reload the page. If this stays, send this to the team:<code>The database client did not start (see any red message above).</code></div>'; return; }
+        if (!email || !pass) { $("login-error").innerHTML = '<p class="msg bad">Please type your e-mail and password.</p>'; return; }
+        var btn = $("l-btn"); btn.disabled = true; btn.textContent = "Signing in...";
+        db.auth.signInWithPassword({ email: email, password: pass }).then(function (res) {
+          if (res.error) { btn.disabled = false; btn.textContent = "Sign in"; $("login-error").innerHTML = '<div class="error-box"><strong>Could not sign in.</strong>' + esc(hint(res.error.message || "")) + " If you need help, send this message to the team:<code>" + esc(res.error.message) + "</code></div>"; return; }
+          location.replace(window.MCLAuth.nextPage());
+        }, function (e) { btn.disabled = false; btn.textContent = "Sign in"; $("login-error").innerHTML = '<div class="error-box"><strong>Could not sign in.</strong>' + esc(hint(String(e && e.message))) + " Please send this message to the team:<code>" + esc(e && e.message ? e.message : e) + "</code></div>"; });
+      });
+    })();
+  </script>
+</body>
+</html>

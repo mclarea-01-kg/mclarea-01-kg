@@ -145,3 +145,5 @@ tr.rowlink { cursor: pointer; }
 .fixed-box dd { margin: 0 0 4px; font-weight: 700; }
 .form-h { margin: 4px 0 6px; font-size: 14px; color: var(--deep); text-transform: uppercase; letter-spacing: .4px; }
 #a-cons { font-size: 18px; font-weight: 700; }
+.login-card { max-width: 460px; margin: 24px auto; }
+.login-card .field input { width: 100%; }

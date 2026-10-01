@@ -875,7 +875,7 @@
     var url = window.SUPABASE_URL || "", key = window.SUPABASE_PUBLISHABLE_KEY || "";
     if (!window.supabase) { useDemo("The Supabase library could not be loaded from cdn.jsdelivr.net. Check the internet connection."); return; }
     if (url.indexOf("PASTE") !== -1 || key.indexOf("PASTE") !== -1) { useDemo("config.js still has the placeholder Project URL or key."); return; }
-    db = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_PUBLISHABLE_KEY);
+    db = window.mclDb || window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_PUBLISHABLE_KEY);   // the signed-in client made by auth.js
     setBanner("Loading readings from the database...", "ok");
     var timeout = new Promise(function (_, rej) { setTimeout(function () { rej(new Error("The database did not answer within 15 seconds (timed out).")); }, 15000); });
     Promise.race([fetchAll(0, []), timeout]).then(function (rows) {
@@ -888,8 +888,12 @@
       finish(note, "ok");
     }).catch(function (e) { if (window.console) console.error(e); useDemo(e); });
   }
-  try {
-    initCustomize(); bindCustomize(); bind(); bindAdd(); refreshLists();
-    boot();
-  } catch (e) { showError("starting the page", e); }
+  // wait until auth.js has checked the login (it redirects to login.html when there is none)
+  (window.MCLAuthReady || Promise.resolve({ ok: true })).then(function (a) {
+    if (a && a.ok === false) return;
+    try {
+      initCustomize(); bindCustomize(); bind(); bindAdd(); refreshLists();
+      applyRole(); boot();
+    } catch (e) { showError("starting the page", e); }
+  });
 })();

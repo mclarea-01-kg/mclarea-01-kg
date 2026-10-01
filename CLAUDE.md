@@ -31,7 +31,7 @@
 4. The Project URL and the publishable key live only in config.js. Never use
    or ask for a secret key, a service_role key or the database password.
 5. For charts, load Chart.js from the jsDelivr CDN.
-6. No login or sign-up. Anyone with the link can use the tool.
+6. LOGIN (changed on the team's request): dashboard.html needs an e-mail + password login (Supabase Auth, page login.html). index.html and login.html are open. NO self sign-up: the Data Keeper creates the accounts and gives each a role (database/07-set-user-roles.sql). Never use a secret key or service_role key for this; the publishable key is enough.
 7. You may not be able to reach our database. Do NOT try to test the database
    connection. Write the code; we test it on the live website.
 8. If anything fails, show a friendly message on the page that also includes
@@ -47,11 +47,11 @@
   folder: 01-setup.sql, then 02-..., 03-... for later changes.
 - One table. It must have: id uuid primary key default gen_random_uuid()
   and created_at timestamptz not null default now().
-- Enable Row Level Security. Add policies that let the roles anon and
-  authenticated SELECT, INSERT and UPDATE. No delete.
-- Always include: grant select, insert, update on the table to anon,
-  authenticated; (new Supabase projects need it, or the website gets
-  "permission denied").
+- Enable Row Level Security. Policies let the role "authenticated" (signed-in people WITH a role) SELECT, INSERT and UPDATE as
+  set in database/06-login-security.sql. "anon" (no login) gets NO access. No delete.
+- Always include: grant select, insert, update on the table to authenticated
+  (new Supabase projects need it, or the website gets "permission denied").
+  Do NOT grant anything to anon any more.
 - Never drop a table or delete rows.
 - Avoid changing the table after Phase 1. If a change is really needed, give
   one small block and explain it in one sentence.
@@ -76,7 +76,7 @@
 - Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
 - Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
 - Table name and columns: fuel_readings (database/02, 03, 04 files): id, created_at, reading_date, mine, vehicle_type, vehicle_no, shift, expected_litres (= the vehicle's FIXED litres per shift), consumed_litres (optional: diesel typed in the Add reading form; if empty the fixed litres are used), exception_type ('' = normal, or High Consumption / Low Consumption / Refueling Irregularity / Mileage Mismatch / Other), status, entered_by, updated_by, updated_at. OLD columns siding, actual_litres, exception_flag still exist but are optional and unused. The older table diesel_exceptions (01-setup.sql) is NOT used any more.
-- Pages: index.html = home; dashboard.html = dashboard (code in overview.js; fixed litres/km per vehicle in fixed-values.js; built-in sample data in overview-data.js; user.js = who-are-you picker; styles in style.css + overview.css).
+- Pages (3, the maximum): index.html = home (open); login.html = sign in (open; code in auth.js); dashboard.html = dashboard (login needed); dashboard.html = dashboard (code in overview.js; fixed litres/km per vehicle in fixed-values.js; built-in sample data in overview-data.js; user.js = who-are-you picker; styles in style.css + overview.css).
 
 ## Progress Log (newest entry at the bottom)
 - Phase 0 (starter): placeholder index.html, config.js without settings and
@@ -193,4 +193,17 @@
   Ltrs/hr chart by vehicle type and the Ltrs/hr line in the trend chart were NOT removed (not asked). (2) In Add reading >
   Fuel, "Fixed fuel" now reads "360 L" (the "/ shift" was removed). The Shift choice for the reading itself is unchanged.
   No database change. Tested with a stand-in database only.
+- Phase 14 (Claude, on request): REAL PASSWORD LOGIN (Supabase Auth, e-mail + password). New: login.html, auth.js (replaces
+  user.js, which was deleted), database/06-login-security.sql, database/07-set-user-roles.sql. dashboard.html redirects to
+  login.html when nobody is signed in; the header chip shows name + role with Sign out. The ROLE (Fuel Manager, E&M
+  Manager, Shift Supervisor, Viewer) comes from the account's app_metadata.role, set by the Data Keeper with the 07
+  file (people cannot edit it); the NAME comes from user_metadata.name. The DATABASE enforces the roles (06 file): no
+  access without login; read = any of the 4 roles; add = Fuel Manager, E&M Manager, Shift Supervisor; change status =
+  Fuel Manager, E&M Manager; nobody can delete; an account with no role sees nothing (and the page says so). Rules 6 and
+  the Database rules in this file were changed accordingly. 06 and the permissions were tested on a throwaway local
+  Postgres with a stand-in for auth.jwt(); the screens were tested with a stand-in for Supabase login. NOT tested on our
+  real Supabase. ORDER (important, or people get locked out): (1) Data Keeper: Supabase > Authentication > turn OFF
+  "Allow new users to sign up"; create each user (Add user > Create new user, tick Auto Confirm); edit and run 07.
+  (2) Merge to main so the new site goes live. (3) Run 06 to lock the data. Known: password reset is done by the Data
+  Keeper in Supabase; settings like alert rules are still per browser; "Never delete" rule unchanged.
 
