@@ -76,7 +76,7 @@
 - Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
 - Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
 - Table name and columns: fuel_readings (database/02, 03, 04 files): id, created_at, reading_date, mine, vehicle_type, vehicle_no, shift, expected_litres (= the vehicle's FIXED litres per shift), consumed_litres (optional: diesel typed in the Add reading form; if empty the fixed litres are used), exception_type ('' = normal, or High Consumption / Low Consumption / Refueling Irregularity / Mileage Mismatch / Other), status, entered_by, updated_by, updated_at. OLD columns siding, actual_litres, exception_flag still exist but are optional and unused. The older table diesel_exceptions (01-setup.sql) is NOT used any more.
-- Pages (3, the maximum): index.html = home (open); login.html = sign in (open; code in auth.js); dashboard.html = dashboard (login needed); dashboard.html = dashboard (code in overview.js; fixed litres/km per vehicle in fixed-values.js; built-in sample data in overview-data.js; user.js = who-are-you picker; styles in style.css + overview.css).
+- Pages (3, the maximum): index.html = home (open); login.html = sign in (open); dashboard.html = dashboard (login needed). Code: auth.js = login and roles (all pages); overview.js = dashboard; fixed-values.js = fixed litres per vehicle; overview-data.js = built-in demo data; styles in style.css + overview.css. (user.js no longer exists.)
 
 ## Progress Log (newest entry at the bottom)
 - Phase 0 (starter): placeholder index.html, config.js without settings and
