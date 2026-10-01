@@ -61,6 +61,7 @@
         <div class="fld"><label for="f-mine">Mine</label><select id="f-mine"></select></div>
         <div class="fld"><label for="f-vtype">Vehicle type</label><select id="f-vtype"></select></div>
         <div class="fld"><label for="f-eq">Equipment</label><select id="f-eq"></select></div>
+        <div class="fld"><label for="f-op">Operator</label><select id="f-op"></select></div>
         <div class="fld"><label for="f-shift">Shift</label><select id="f-shift"></select></div>
         <p class="side-note">These two apply to the exception widgets only:</p>
         <div class="fld"><label for="f-etype">Exception type</label><select id="f-etype"></select></div>
@@ -106,6 +107,15 @@
             <div class="pbody" id="top-locations"></div>
           </section>
         </div>
+
+        <!-- OPERATOR ANALYSIS -->
+        <section class="pcard" data-widget="operators">
+          <h2 class="ptitle">Operator Analysis</h2>
+          <div class="pbody">
+            <p class="note" style="margin:0 0 8px">Each operator, for the period and filters above. <strong>Rule:</strong> Retrain = at least 3 exceptions and an exception rate of 25% or more. Counsel = at least 2 exceptions and a rate of 15% or more. Monitor = any other operator with an exception. OK = none. (Exception rate = exceptions &divide; readings.) Ltrs/hr is litres divided by the working hours typed in. &ldquo;vs norm&rdquo; compares it with the vehicles' norm rate. Click an operator to see their readings.</p>
+            <div id="t-operators"></div>
+          </div>
+        </section>
 
         <!-- ROW 4 -->
         <div class="row r-details">
@@ -185,11 +195,13 @@
   <aside class="drawer" id="drawer-add" role="dialog" aria-modal="true" aria-labelledby="dad-title" hidden>
     <div class="drawer-head"><h2 id="dad-title">Add a fuel reading</h2><button class="btn" type="button" data-close>Close</button></div>
     <p class="perm-note" id="add-perm" hidden></p>
-    <p class="note" id="add-note">Choose the vehicle, date, shift, actual litres, working hours and exception type.</p>
+    <p class="note" id="add-note">Choose the vehicle, date and shift, type the operator name, actual litres and working hours, and choose the exception type.</p>
     <form id="add-form" novalidate>
       <div class="fld two"><div><label for="a-date">Date</label><input type="date" id="a-date" required></div><div><label for="a-shift">Shift</label><select id="a-shift"><option>A Shift</option><option>B Shift</option><option>C Shift</option></select></div></div>
       <div class="fld"><label for="a-no">Vehicle</label><select id="a-no" required></select></div>
       <dl class="fixed-box" id="a-fixed" aria-label="Chosen vehicle"></dl>
+      <div class="fld"><label for="a-op">Operator name</label><input type="text" id="a-op" list="dl-op" maxlength="40" autocomplete="off" required placeholder="e.g. OP-101 (made-up name or ID)"><datalist id="dl-op"></datalist>
+        <p class="note" style="margin:4px 0 0">Who ran the machine. Please use a made-up name or ID, not a real one.</p></div>
       <h3 class="form-h">Fuel</h3>
       <dl class="fixed-box" id="a-fuel" aria-label="Fixed fuel for the chosen vehicle"></dl>
       <div class="fld"><label for="a-cons">Actual litres (Ltrs)</label><input type="number" id="a-cons" min="0" step="any" inputmode="decimal" placeholder="e.g. 360">

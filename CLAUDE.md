@@ -75,7 +75,7 @@
 - Tool name: Diesel Exception & Fuel Consumption Monitoring Dashboard
 - Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
 - Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
-- Table name and columns: fuel_readings (database/02, 03, 04 files): id, created_at, reading_date, mine, vehicle_type, vehicle_no, shift, expected_litres (= the vehicle's FIXED litres per shift), working_hours (optional; typed in the Add reading form, required there; database/08-working-hours.sql), consumed_litres (optional: diesel typed in the Add reading form; if empty the fixed litres are used), exception_type ('' = normal, or High Consumption / Low Consumption / Refueling Irregularity / Mileage Mismatch / Other), status, entered_by, updated_by, updated_at. OLD columns siding, actual_litres, exception_flag still exist but are optional and unused. The older table diesel_exceptions (01-setup.sql) is NOT used any more.
+- Table name and columns: fuel_readings (database/02, 03, 04 files): id, created_at, reading_date, mine, vehicle_type, vehicle_no, shift, expected_litres (= the vehicle's FIXED litres per shift), operator_name (optional in the database, REQUIRED in the Add reading form; database/09-operator-name.sql), working_hours (optional; typed in the Add reading form, required there; database/08-working-hours.sql), consumed_litres (optional: diesel typed in the Add reading form; if empty the fixed litres are used), exception_type ('' = normal, or High Consumption / Low Consumption / Refueling Irregularity / Mileage Mismatch / Other), status, entered_by, updated_by, updated_at. OLD columns siding, actual_litres, exception_flag still exist but are optional and unused. The older table diesel_exceptions (01-setup.sql) is NOT used any more.
 - Pages (3, the maximum): index.html = home (open); login.html = sign in (open); dashboard.html = dashboard (login needed). Code: auth.js = login and roles (all pages); overview.js = dashboard; fixed-values.js = fixed litres per vehicle; overview-data.js = built-in demo data; styles in style.css + overview.css. (user.js no longer exists.)
 
 ## Progress Log (newest entry at the bottom)
@@ -216,4 +216,17 @@
   says so when nothing has hours yet). If 08 has not been run, new readings cannot be saved and a yellow note says so.
   Tested with a stand-in database only. Next: Data Keeper runs 08 file; decide if old sample rows should get made-up
   hours so the Ltrs/hr chart is not empty in demos.
+- Phase 16 (Claude, on request): OPERATOR NAME + OPERATOR ANALYSIS. Add reading now has a required "Operator name" box
+  (1-40 characters; suggestions from names already used; "op-101" and "OP-101" count as the same person; please use
+  made-up names or IDs only). Saved in a NEW optional column operator_name (database/09-operator-name.sql; OPTIONAL
+  database/10-sample-operators-optional.sql gives only the made-up SAMPLE rows made-up IDs OP-101..OP-112 and never
+  touches rows typed by a person; both checked on a throwaway local Postgres, NOT on our Supabase). Dashboard: new
+  Operator filter; new "Operator Analysis" table (per operator: readings, exceptions, exception rate, open exceptions,
+  litres, hours, Ltrs/hr, % versus the vehicles' norm rate, main issue, recommendation) with sorting; click an operator
+  for a window with their exception types and last 8 readings and a button to filter the whole dashboard to them. Rule
+  (shown on the page): Retrain = at least 3 exceptions and rate 25% or more; Counsel = at least 2 and 15% or more;
+  Monitor = any other with an exception; OK = none. The details table, CSV, record window and alerts show the
+  operator; Recommended Actions has an "Operators" group. Older readings have no operator and are left out (the page
+  says so). If 09 has not been run, new readings cannot be saved and a yellow note says so. Demo mode uses made-up
+  operator IDs. Tested with a stand-in database only. Next: Data Keeper runs 09 (and optionally 10).
 

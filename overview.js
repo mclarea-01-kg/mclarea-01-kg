@@ -11,7 +11,7 @@
   var EXC_TYPES = ["High Consumption", "Low Consumption", "Refueling Irregularity", "Mileage Mismatch", "Other"];
   var EXC_COLORS = { "High Consumption": "#c62828", "Low Consumption": "#0b57c7", "Refueling Irregularity": "#c98a00", "Mileage Mismatch": "#0a1f44", "Other": "#8a96a8" };
   var STATUSES = ["Open", "Under Review", "In Progress", "Closed"];
-  var WIDGETS = [["trend", "Diesel consumption trend"], ["type", "Exceptions by type"], ["mine", "Exceptions by mine"], ["eff", "Fuel consumption rate by vehicle type"], ["equip", "Fuel consumption by equipment"], ["locations", "Top 5 exception vehicles"], ["details", "Exception details table"], ["insights", "Key insights"], ["actions", "Recommended actions"]];
+  var WIDGETS = [["trend", "Diesel consumption trend"], ["type", "Exceptions by type"], ["mine", "Exceptions by mine"], ["eff", "Fuel consumption rate by vehicle type"], ["equip", "Fuel consumption by equipment"], ["locations", "Top 5 exception vehicles"], ["operators", "Operator analysis"], ["details", "Exception details table"], ["insights", "Key insights"], ["actions", "Recommended actions"]];
   var DEFAULTS = { suggestHigh: 10, suggestLow: 10, alertTypes: EXC_TYPES.slice(), critTypes: ["High Consumption"], price: 92, group: "auto", live: true, interval: 30, toasts: true, sound: false, rows: 8, widgets: {} };
   WIDGETS.forEach(function (w) { DEFAULTS.widgets[w[0]] = true; });
 
@@ -58,8 +58,9 @@
   var hasType = null;    // same for the exception_type column (04 SQL file)
   var hasConsumed = null; // same for the consumed_litres column (05 SQL file)
   var hasHours = null;    // same for the working_hours column (08 SQL file)
+  var hasOperator = null; // same for the operator_name column (09 SQL file)
   var MODE = "demo", db = null, channel = null, pollTimer = null, lastCreated = "", connState = "demo", dbIds = {};
-  var records = [], machines = [], mineList = [], typeList = TYPE_ORDER.slice();
+  var records = [], machines = [], mineList = [], typeList = TYPE_ORDER.slice(), opList = [];
   var DATA_MIN = 0, DATA_MAX = 0;
   function todayLocal() { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
   // Old rows (before 04-fixed-readings.sql) have no exception_type: work it out once from the old numbers.
@@ -70,8 +71,12 @@
   }
   // fixed litres, vehicle type and mine always come from the fixed list when the vehicle is known
   function withFixed(o) { var fx = FIXED[o.no]; if (fx) { o.vtype = fx.vtype; o.mine = fx.mine; o.lit = fx.litres; o.fixed = fx.litres; } return o; }
+  // operator names: trim and collapse spaces; "op-101" and "OP-101" count as the same person
+  function cleanOp(s) { return String(s == null ? "" : s).replace(/\s+/g, " ").trim(); }
+  var opDisplay = {};   // lower-case key -> the spelling used most often
+  function opLabel(r) { return opDisplay[r.opk] || r.op; }
   function makeRec(o) {
-    return { id: records.length, date: o.date, day: dayNum(o.date), no: o.no, vtype: o.vtype, mine: o.mine, shift: o.shift, lit: o.lit, fixed: o.fixed !== undefined ? o.fixed : o.lit, cons: !!o.cons, hrs: (o.hrs > 0 ? Number(o.hrs) : null),
+    return { id: records.length, date: o.date, day: dayNum(o.date), no: o.no, vtype: o.vtype, mine: o.mine, shift: o.shift, lit: o.lit, fixed: o.fixed !== undefined ? o.fixed : o.lit, cons: !!o.cons, hrs: (o.hrs > 0 ? Number(o.hrs) : null), op: cleanOp(o.op), opk: cleanOp(o.op).toLowerCase(),
       type: o.type || "", status: o.status, dbId: o.dbId || null, live: !!o.live, enteredBy: o.enteredBy || "", updatedBy: o.updatedBy || "", updatedAt: o.updatedAt || "" };
   }
   function recFromDb(row) {
@@ -79,14 +84,15 @@
     var o = withFixed({ date: String(row.reading_date).slice(0, 10), vtype: row.vehicle_type, no: row.vehicle_no, mine: row.mine, shift: row.shift,
       lit: Number(row.expected_litres), type: typ, status: row.status, dbId: row.id, enteredBy: row.entered_by, updatedBy: row.updated_by, updatedAt: row.updated_at });
     if (row.consumed_litres !== null && row.consumed_litres !== undefined && row.consumed_litres !== "") { o.lit = Number(row.consumed_litres); o.cons = true; }   // diesel typed in the Add reading form
-    if (row.working_hours !== null && row.working_hours !== undefined && row.working_hours !== "") o.hrs = Number(row.working_hours);   // working hours typed in the Add reading form
+    if (row.working_hours !== null && row.working_hours !== undefined && row.working_hours !== "") o.hrs = Number(row.working_hours);
+    o.op = row.operator_name;   // working hours typed in the Add reading form
     return makeRec(o);
   }
   function loadDemo() {
     records = [];
     ROWS.forEach(function (r) {
       var m = META.machines[r[1]];
-      records.push(makeRec(withFixed({ date: r[0], vtype: META.types[m.type], no: m.no, mine: META.mines[m.mine], shift: META.shifts[r[2]], lit: r[4], type: legacyType(META.flags[r[7]], r[5], r[4]), status: META.statuses[r[8]] })));
+      records.push(makeRec(withFixed({ date: r[0], vtype: META.types[m.type], no: m.no, mine: META.mines[m.mine], shift: META.shifts[r[2]], lit: r[4], type: legacyType(META.flags[r[7]], r[5], r[4]), status: META.statuses[r[8]], op: "OP-" + (101 + (m.no.charCodeAt(0) * 7 + m.no.charCodeAt(3) * 3 + m.no.charCodeAt(4) + r[2] * 5) % 12) })));
     });
   }
   function deriveMachines() {
@@ -102,10 +108,14 @@
     typeList = TYPE_ORDER.concat(extra);
     if (records.length) { DATA_MIN = Math.min.apply(null, records.map(function (r) { return r.day; })); DATA_MAX = Math.max.apply(null, records.map(function (r) { return r.day; })); }
     else { DATA_MIN = DATA_MAX = dayNum(todayLocal()); }
+    var cnt = {}; records.forEach(function (r) { if (r.opk) { (cnt[r.opk] = cnt[r.opk] || {})[r.op] = (cnt[r.opk][r.op] || 0) + 1; } });
+    opDisplay = {}; Object.keys(cnt).forEach(function (k) { opDisplay[k] = Object.keys(cnt[k]).sort(function (a, b) { return cnt[k][b] - cnt[k][a]; })[0]; });
+    opList = Object.keys(opDisplay).sort().map(function (k) { return { key: k, name: opDisplay[k] }; });
+    $("dl-op").innerHTML = opList.map(function (o) { return '<option value="' + esc(o.name) + '">'; }).join("");
     var cur = $("a-no").value;
     $("a-no").innerHTML = machines.map(function (m) { return '<option value="' + esc(m.no) + '"' + (m.no === cur ? " selected" : "") + ">" + esc(m.no + " · " + m.vtype + " · " + m.mine) + "</option>"; }).join("");
   }
-  var F = { preset: "30", from: "", to: "", mine: "", vtype: "", eq: "", shift: "", etype: "", status: "" };
+  var F = { preset: "30", from: "", to: "", mine: "", vtype: "", eq: "", op: "", shift: "", etype: "", status: "" };
   var UI = { sortKey: "date", sortDir: "desc", page: 1, search: "" };
   var charts = {}, view = {}, alerts = [], alertSeq = 1, liveCount = 0, timer = null, audio = null;
 
@@ -133,9 +143,12 @@
     F.from = numToDate(Math.max(from, DATA_MIN)); F.to = numToDate(to);
     $("f-from").value = F.from; $("f-to").value = F.to;
   }
+  function fillOpSelect() {
+    $("f-op").innerHTML = '<option value="">All</option>' + opList.map(function (o) { return '<option value="' + esc(o.key) + '"' + (o.key === F.op ? " selected" : "") + ">" + esc(o.name) + "</option>"; }).join("");
+  }
   function rebuildFilterOptions() {
     fillSelect("f-mine", "All", mineList, F.mine); fillSelect("f-vtype", "All", typeList, F.vtype);
-    fillSelect("f-eq", "All", eqOptions(), F.eq); fillSelect("f-shift", "All", SHIFTS, F.shift); fillSelect("f-etype", "All", EXC_TYPES, F.etype); fillSelect("f-status", "All", STATUSES, F.status);
+    fillSelect("f-eq", "All", eqOptions(), F.eq); fillOpSelect(); fillSelect("f-shift", "All", SHIFTS, F.shift); fillSelect("f-etype", "All", EXC_TYPES, F.etype); fillSelect("f-status", "All", STATUSES, F.status);
   }
   function refreshBounds() {
     $("f-from").min = $("f-to").min = numToDate(DATA_MIN); $("f-from").max = $("f-to").max = numToDate(DATA_MAX);
@@ -151,19 +164,19 @@
       if (F.from > F.to) { var t = F.from; F.from = F.to; F.to = t; $("f-from").value = F.from; $("f-to").value = F.to; }
     }
     F.mine = $("f-mine").value; F.vtype = $("f-vtype").value;
-    var want = $("f-eq").value; fillSelect("f-eq", "All", eqOptions(), want); F.eq = $("f-eq").value;
+    var want = $("f-eq").value; fillSelect("f-eq", "All", eqOptions(), want); F.eq = $("f-eq").value; F.op = $("f-op").value;
     F.shift = $("f-shift").value; F.etype = $("f-etype").value; F.status = $("f-status").value;
   }
   function pushFilters() {
     $("f-preset").value = F.preset; $("f-from").value = F.from; $("f-to").value = F.to;
     $("f-mine").value = F.mine; $("f-vtype").value = F.vtype;
-    fillSelect("f-eq", "All", eqOptions(), F.eq); $("f-shift").value = F.shift; $("f-etype").value = F.etype; $("f-status").value = F.status;
+    fillSelect("f-eq", "All", eqOptions(), F.eq); fillOpSelect(); $("f-shift").value = F.shift; $("f-etype").value = F.etype; $("f-status").value = F.status;
   }
 
   /* ================= calculations ================= */
   function base(r, fr, to) {
     return r.day >= fr && r.day <= to && (!F.mine || r.mine === F.mine) &&
-      (!F.vtype || r.vtype === F.vtype) && (!F.eq || r.no === F.eq) && (!F.shift || r.shift === F.shift);
+      (!F.vtype || r.vtype === F.vtype) && (!F.eq || r.no === F.eq) && (!F.op || r.opk === F.op) && (!F.shift || r.shift === F.shift);
   }
   function excOf(list) {
     return list.filter(function (r) { return r._t && (!F.etype || r._t === F.etype) && (!F.status || statusOf(r) === F.status); });
@@ -331,6 +344,7 @@
     { key: "date", label: "Date", val: function (r) { return r.day; }, html: function (r) { return fmtDate(r.date); } },
     { key: "mine", label: "Mine", val: function (r) { return r.mine; }, html: function (r) { return esc(r.mine); } },
     { key: "no", label: "Vehicle No.", val: function (r) { return r.no; }, html: function (r) { return esc(r.no); } },
+    { key: "op", label: "Operator", val: function (r) { return opLabel(r).toLowerCase(); }, html: function (r) { return r.op ? opBtn(r) : "\u2013"; } },
     { key: "vtype", label: "Equipment", val: function (r) { return r.vtype; }, html: function (r) { return esc(r.vtype); } },
     { key: "shift", label: "Shift", val: function (r) { return r.shift; }, html: function (r) { return esc(r.shift); } },
     { key: "lit", label: "Fuel (L)", num: 1, val: function (r) { return r.lit; }, html: function (r) { return num(r.lit); } },
@@ -341,7 +355,7 @@
   ];
   function detailRows() {
     var q = UI.search.trim().toLowerCase();
-    return view.exc.filter(function (r) { return !q || [r.date, fmtDate(r.date), r.mine, r.no, r.vtype, r._t, statusOf(r), r.shift].join(" ").toLowerCase().indexOf(q) !== -1; });
+    return view.exc.filter(function (r) { return !q || [r.date, fmtDate(r.date), r.mine, r.no, opLabel(r), r.vtype, r._t, statusOf(r), r.shift].join(" ").toLowerCase().indexOf(q) !== -1; });
   }
   function renderDetails() {
     var rows = detailRows(), host = $("t-details");
@@ -363,6 +377,69 @@
     h += "</tbody></table></div>";
     h += '<div class="pager"><span>Showing ' + ((UI.page - 1) * ps + 1) + "–" + Math.min(UI.page * ps, rows.length) + " of " + rows.length + '</span><span><button class="btn" type="button" data-page="prev"' + (UI.page <= 1 ? " disabled" : "") + '>Previous</button> Page ' + UI.page + " of " + pages + ' <button class="btn" type="button" data-page="next"' + (UI.page >= pages ? " disabled" : "") + ">Next</button></span></div>";
     host.innerHTML = h;
+  }
+
+  /* ---- operator analysis ---- */
+  function opBtn(r) { return '<button type="button" class="link" data-op="' + esc(r.opk) + '" title="Show readings of ' + esc(opLabel(r)) + '">' + esc(opLabel(r)) + "</button>"; }
+  function operatorStats(list) {
+    var by = {};
+    list.forEach(function (r) { if (r.opk) (by[r.opk] = by[r.opk] || []).push(r); });
+    return Object.keys(by).map(function (k) {
+      var l = by[k], exc = l.filter(function (r) { return r._t; }), w = withHours(l);
+      var hours = sum(w, function (r) { return r.hrs; }), lit = sum(l, function (r) { return r.lit; }), litH = sum(w, function (r) { return r.lit; });
+      var normLit = sum(w, function (r) { return r.fixed / NORM_HOURS * r.hrs; });
+      var types = {}; exc.forEach(function (r) { types[r._t] = (types[r._t] || 0) + 1; });
+      var top = Object.keys(types).sort(function (a, b) { return types[b] - types[a]; })[0] || "";
+      var rate = l.length ? exc.length / l.length : 0;
+      var lvl = (exc.length >= 3 && rate >= 0.25) ? 3 : (exc.length >= 2 && rate >= 0.15) ? 2 : exc.length >= 1 ? 1 : 0;   // rate-based, so busy operators are not flagged just for having more readings
+      return { key: k, name: opDisplay[k] || l[0].op, list: l, n: l.length, exc: exc.length, open: exc.filter(function (r) { return statusOf(r) === "Open"; }).length, rate: rate,
+        lit: lit, hours: hours, lph: hours ? litH / hours : 0, vsNorm: normLit ? (litH / normLit - 1) * 100 : null, top: top, types: types, last: l.reduce(function (m, r) { return r.day > m ? r.day : m; }, 0), lvl: lvl };
+    });
+  }
+  var OPT = { sortKey: "exc", sortDir: "desc" };
+  var OP_COLS = [
+    { key: "name", label: "Operator", val: function (o) { return o.name.toLowerCase(); }, html: function (o) { return '<button type="button" class="link" data-op="' + esc(o.key) + '">' + esc(o.name) + "</button>"; } },
+    { key: "n", label: "Readings", num: 1, val: function (o) { return o.n; }, html: function (o) { return o.n; } },
+    { key: "exc", label: "Exceptions", num: 1, val: function (o) { return o.exc * 1000 + o.rate * 100; }, html: function (o) { return o.exc; } },
+    { key: "rate", label: "Exception rate", num: 1, val: function (o) { return o.rate; }, html: function (o) { return Math.round(o.rate * 100) + '%<span class="rate-bar" aria-hidden="true"><i style="width:' + Math.round(o.rate * 100) + '%"></i></span>'; } },
+    { key: "open", label: "Open", num: 1, val: function (o) { return o.open; }, html: function (o) { return o.open; } },
+    { key: "lit", label: "Litres", num: 1, val: function (o) { return o.lit; }, html: function (o) { return num(o.lit); } },
+    { key: "hours", label: "Hours", num: 1, val: function (o) { return o.hours; }, html: function (o) { return o.hours ? num1(o.hours) : "\u2013"; } },
+    { key: "lph", label: "Ltrs/hr", num: 1, val: function (o) { return o.lph; }, html: function (o) { return o.hours ? o.lph.toFixed(1) : "\u2013"; } },
+    { key: "vs", label: "vs norm", num: 1, val: function (o) { return o.vsNorm === null ? -999 : o.vsNorm; }, html: function (o) { return o.vsNorm === null ? "\u2013" : '<span class="' + (o.vsNorm > 0 ? "dev-bad" : "dev-low") + '">' + (o.vsNorm > 0 ? "+" : "") + num1(o.vsNorm) + "%</span>"; } },
+    { key: "top", label: "Main issue", val: function (o) { return o.top; }, html: function (o) { return o.top ? esc(o.top) : "\u2013"; } },
+    { key: "lvl", label: "Recommendation", val: function (o) { return o.lvl * 1000 + o.exc; }, html: function (o) {
+      return o.lvl === 3 ? badge("b-crit", "\u25B2 Retrain") : o.lvl === 2 ? badge("b-warn", "\u25CF Counsel") : o.lvl === 1 ? badge("b-info", "\u25CB Monitor") : badge("b-ok", "\u2714 OK"); } }
+  ];
+  function badge(cls, t) { return '<span class="badge ' + cls + '">' + esc(t) + "</span>"; }
+  function renderOperators() {
+    var host = $("t-operators"), rows = operatorStats(view.pool), missing = view.pool.filter(function (r) { return !r.opk; }).length;
+    if (!rows.length) { host.innerHTML = '<div class="empty-msg">No operator names entered yet for this period. Type the operator name in Add reading.</div>'; return; }
+    var col = OP_COLS.filter(function (c) { return c.key === OPT.sortKey; })[0] || OP_COLS[2], dir = OPT.sortDir === "asc" ? 1 : -1;
+    rows.sort(function (a, b) { var x = col.val(a), y = col.val(b); return x < y ? -dir : x > y ? dir : a.name < b.name ? -1 : 1; });
+    var h = '<div class="tbl-sortbar"><label for="ss-op">Sort by</label><select id="ss-op" data-opsel="1">';
+    OP_COLS.forEach(function (c) { ["desc", "asc"].forEach(function (d) { h += '<option value="' + c.key + "|" + d + '"' + (c.key === OPT.sortKey && d === OPT.sortDir ? " selected" : "") + ">" + esc(c.label) + (d === "asc" ? " (low to high)" : " (high to low)") + "</option>"; }); });
+    h += '</select></div><div class="tbl-wrap"><table class="tbl"><thead><tr>';
+    OP_COLS.forEach(function (c) { var s = c.key === OPT.sortKey ? (OPT.sortDir === "asc" ? "ascending" : "descending") : "none"; h += '<th class="' + (c.num ? "num" : "") + '" aria-sort="' + s + '"><button type="button" data-opsort="' + c.key + '">' + esc(c.label) + "</button></th>"; });
+    h += "</tr></thead><tbody>";
+    rows.forEach(function (o) { h += "<tr>" + OP_COLS.map(function (c) { return '<td class="' + (c.num ? "num" : "") + '" data-label="' + esc(c.label) + '"><span class="cell">' + c.html(o) + "</span></td>"; }).join("") + "</tr>"; });
+    h += "</tbody></table></div>" + (missing ? '<p class="note">' + missing + " reading" + (missing === 1 ? " has" : "s have") + " no operator name and " + (missing === 1 ? "is" : "are") + " not counted here.</p>" : "");
+    host.innerHTML = h;
+  }
+  function openOperator(key) {
+    var o = operatorStats(view.pool).filter(function (x) { return x.key === key; })[0];
+    if (!o) { o = operatorStats(records.filter(function (r) { return r.opk === key; }))[0]; if (!o) return; }
+    $("rec-title").textContent = "Operator: " + o.name;
+    var typ = Object.keys(o.types).sort(function (a, b) { return o.types[b] - o.types[a]; }).map(function (t) { return esc(t) + ": <strong>" + o.types[t] + "</strong>"; }).join(" &middot; ") || "no exceptions";
+    var recent = o.list.slice().sort(function (a, b) { return b.day - a.day || b.id - a.id; }).slice(0, 8);
+    var h = '<dl class="rec-grid">' + [["Readings", o.n], ["Exceptions", o.exc + " (" + Math.round(o.rate * 100) + "%)"], ["Open exceptions", o.open], ["Litres", num(o.lit) + " L"], ["Working hours", o.hours ? num1(o.hours) + " hrs" : "not entered"], ["Ltrs/hr", o.hours ? o.lph.toFixed(1) : "\u2013"], ["Versus norm", o.vsNorm === null ? "\u2013" : (o.vsNorm > 0 ? "+" : "") + num1(o.vsNorm) + "%"], ["Last reading", o.last ? fmtDate(numToDate(o.last)) : "\u2013"]].map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("") + "</dl>";
+    h += '<p class="note" style="margin:0 0 8px">Exception types: ' + typ + "</p><p>" + (o.lvl === 3 ? badge("b-crit", "\u25B2 Retrain") : o.lvl === 2 ? badge("b-warn", "\u25CF Counsel") : o.lvl === 1 ? badge("b-info", "\u25CB Monitor") : badge("b-ok", "\u2714 OK")) + ' <span class="op-badge-note">(period and filters as selected)</span></p>';
+    h += '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Date</th><th>Vehicle</th><th class="num">Litres</th><th class="num">Hours</th><th>Exception</th></tr></thead><tbody>' +
+      recent.map(function (r) { return "<tr><td data-label=\"Date\">" + esc(fmtDate(r.date)) + "</td><td data-label=\"Vehicle\">" + esc(r.no) + '</td><td class="num" data-label="Litres">' + num(r.lit) + '</td><td class="num" data-label="Hours">' + (r.hrs ? num1(r.hrs) : "\u2013") + "</td><td data-label=\"Exception\">" + (r._t ? esc(r._t) : "\u2013") + "</td></tr>"; }).join("") + "</tbody></table></div>";
+    h += '<button class="btn primary" type="button" id="op-filter" data-opkey="' + esc(o.key) + '" style="margin-top:10px">Show only this operator on the dashboard</button>';
+    $("rec-body").innerHTML = h;
+    if (!$("rec-modal").classList.contains("open")) recOpener = document.activeElement;
+    $("rec-modal").classList.add("open"); $("rec-close").focus();
   }
 
   /* ---- insights + actions ---- */
@@ -404,6 +481,10 @@
     if (exc.length) g["Management"].push("Review fixed fuel norms and set corrective targets for the vehicle types with most exceptions: " + joinList(top(exc, function (r) { return r.vtype; }, 2)) + ".");
     var crit = exc.filter(function (r) { return severity(r) === "crit"; });
     if (crit.length) g["Management"].push(crit.length + " critical case" + (crit.length === 1 ? "" : "s") + " (" + joinList(S.critTypes) + "). Review these first.");
+    var ops = operatorStats(view.pool);
+    var retrain = ops.filter(function (o) { return o.lvl === 3; }).sort(function (a, b) { return b.exc - a.exc; }), counsel = ops.filter(function (o) { return o.lvl === 2; }).sort(function (a, b) { return b.exc - a.exc; });
+    if (retrain.length) g["Operators"] = (g["Operators"] || []).concat("Retrain: " + joinList(retrain.slice(0, 4).map(function (o) { return o.name + " (" + o.exc + " exceptions in " + o.n + " readings)"; })) + ".");
+    if (counsel.length) g["Operators"] = (g["Operators"] || []).concat("Counsel: " + joinList(counsel.slice(0, 4).map(function (o) { return o.name + " (" + o.exc + " exceptions)"; })) + ".");
     var h = "";
     Object.keys(g).forEach(function (k) { if (g[k].length) h += '<div class="act-group"><h3>' + esc(k) + "</h3><ul>" + g[k].map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul></div>"; });
     $("actions").innerHTML = h || '<div class="empty-msg">No exceptions, so no actions are needed.</div>';
@@ -417,7 +498,7 @@
     try {
       $("error-area").innerHTML = ""; applyWidgets(); compute();
       renderKpis(); renderTrend(); renderType(); renderMine(); renderEff(); renderEquip(); renderLocations();
-      renderDetails(); renderInsights(); renderActions(); updateBadge();
+      renderOperators(); renderDetails(); renderInsights(); renderActions(); updateBadge();
     } catch (e) { showError("drawing the dashboard", e); if (window.console) console.error(e); }
   }
 
@@ -427,7 +508,7 @@
     var r = records[id]; if (!r) return;
     var t = r._t || excType(r);
     $("rec-title").textContent = r.no + " – " + r.vtype + " · " + fmtDate(r.date);
-    var rows = [["Mine", r.mine], ["Shift", r.shift], ["Fixed fuel", num(r.fixed) + " L"], ["Actual litres", r.cons ? num1(r.lit) + " Ltrs (recorded)" : "not recorded (fixed fuel is used)"],
+    var rows = [["Operator", r.op ? opLabel(r) : "not entered"], ["Mine", r.mine], ["Shift", r.shift], ["Fixed fuel", num(r.fixed) + " L"], ["Actual litres", r.cons ? num1(r.lit) + " Ltrs (recorded)" : "not recorded (fixed fuel is used)"],
       ["Working hours", r.hrs ? num1(r.hrs) + " hrs" : "not entered"], ["Consumption rate", r.hrs ? (r.lit / r.hrs).toFixed(1) + " Ltrs/hr" : "needs working hours"], ["Exception type", t || "None (normal reading)"], ["Fuel cost of this reading", rs(r.lit * S.price)], ["Record", MODE === "db" ? "Saved in the database" : (r.live ? "Simulated live reading" : "Sample record")]];
     var h = '<dl class="rec-grid">' + rows.map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("") + "</dl>";
     var hist = "";
@@ -461,7 +542,7 @@
 
   /* ================= alerts ================= */
   function alertText(r) {
-    return r.no + " (" + r.vtype + ") at " + r.mine + ": " + r._t + " on " + r.shift + ", " + fmtShort(r.date) + ".";
+    return r.no + " (" + r.vtype + ")" + (r.op ? ", operator " + opLabel(r) : "") + " at " + r.mine + ": " + r._t + " on " + r.shift + ", " + fmtShort(r.date) + ".";
   }
 
   function addAlert(r, fresh) {
@@ -506,6 +587,7 @@
 
   /* ---- new readings: real (database) or simulated (demo mode) ---- */
   function hintFor(msg) {
+    if (/operator_name/i.test(msg)) return " The database needs one more small update to save the operator name. Ask the Data Keeper to run database/09-operator-name.sql in the Supabase SQL Editor.";
     if (/working_hours/i.test(msg)) return " The database needs one more small update to save working hours. Ask the Data Keeper to run database/08-working-hours.sql in the Supabase SQL Editor.";
     if (/consumed_litres/i.test(msg)) return " The database needs one more small update to save actual litres. Ask the Data Keeper to run database/05-consumed-litres.sql in the Supabase SQL Editor.";
     if (/exception_type|null value in column/i.test(msg)) return " The database needs one more small update. Ask the Data Keeper to run database/04-fixed-readings.sql in the Supabase SQL Editor.";
@@ -588,11 +670,17 @@
       var p = Math.random();
       type = p < 0.6 ? EXC_TYPES[0] : p < 0.75 ? EXC_TYPES[1] : p < 0.9 ? EXC_TYPES[2] : EXC_TYPES[3];
     }
-    return { date: MODE === "db" ? todayLocal() : numToDate(DATA_MAX), shift: shift, no: m.no, type: type, hrs: Math.round(rnd(6, 8.5) * 2) / 2, system: true };
+    return { date: MODE === "db" ? todayLocal() : numToDate(DATA_MAX), shift: shift, no: m.no, type: type, hrs: Math.round(rnd(6, 8.5) * 2) / 2, op: (opList.length ? opList[Math.floor(Math.random() * opList.length)].name : "OP-101"), system: true };
   }
   function tick(forceExc) { saveReading(makeDemoReading(forceExc), function () {}); }
 
   function isAuditError(msg) { return /entered_by|updated_by|updated_at/i.test(String(msg || "")); }
+  function noteOperator() {
+    var el = $("source-banner"); if (!el || el.querySelector(".operator-note")) return;
+    var d = document.createElement("div"); d.className = "banner demo operator-note";
+    d.innerHTML = "<strong>Operator names cannot be saved yet.</strong> Ask the Data Keeper to run database/09-operator-name.sql. Until then new readings cannot be saved, and the Operator Analysis stays empty.";
+    el.appendChild(d);
+  }
   function noteHours() {
     var el = $("source-banner"); if (!el || el.querySelector(".hours-note")) return;
     var d = document.createElement("div"); d.className = "banner demo hours-note";
@@ -619,9 +707,10 @@
     var type = v.type || "", status = type ? "Open" : "Closed", by = v.system ? "Demo feed" : who();
     if (MODE === "db") {
       if (v.cons !== undefined && v.cons !== null && hasConsumed === false) { var e1 = new Error("The database cannot save actual litres yet (no consumed_litres column)."); showError("saving the reading", e1, hintFor(e1.message)); done(e1); return; }
+      if (hasOperator === false) { var e3 = new Error("The database has no operator_name column yet."); showError("saving the reading", e3, hintFor(e3.message)); done(e3); return; }
       if (hasHours === false) { var e2 = new Error("The database has no working_hours column yet."); showError("saving the reading", e2, hintFor(e2.message)); done(e2); return; }
       if (hasType === false) { var e0 = new Error("The database has no exception_type column yet."); showError("saving the reading", e0, hintFor(e0.message)); done(e0); return; }
-      var payload = { reading_date: v.date, mine: m.mine, vehicle_type: m.vtype, vehicle_no: m.no, shift: v.shift, expected_litres: m.litres, exception_type: type, status: status, working_hours: v.hrs };
+      var payload = { reading_date: v.date, mine: m.mine, vehicle_type: m.vtype, vehicle_no: m.no, shift: v.shift, expected_litres: m.litres, exception_type: type, status: status, working_hours: v.hrs, operator_name: cleanOp(v.op) };
       if (v.cons !== undefined && v.cons !== null) payload.consumed_litres = v.cons;
       var send = function (withAudit) {
         var p = Object.assign({}, payload); if (withAudit) p.entered_by = by;
@@ -641,7 +730,7 @@
         ok(res);
       }, function (e) { showError("saving the reading", e, hintFor(String(e && e.message))); done(e); });
     } else {
-      var r = makeRec({ date: v.date, vtype: m.vtype, no: m.no, mine: m.mine, shift: v.shift, hrs: v.hrs, lit: (v.cons !== undefined && v.cons !== null) ? v.cons : m.litres, fixed: m.litres, cons: (v.cons !== undefined && v.cons !== null), type: type, status: status, live: true, enteredBy: by });
+      var r = makeRec({ date: v.date, vtype: m.vtype, no: m.no, mine: m.mine, shift: v.shift, hrs: v.hrs, op: v.op, lit: (v.cons !== undefined && v.cons !== null) ? v.cons : m.litres, fixed: m.litres, cons: (v.cons !== undefined && v.cons !== null), type: type, status: status, live: true, enteredBy: by });
       records.push(r); afterNew([r]); done(null, r);
     }
   }
@@ -711,7 +800,7 @@
     if (!USER.can("add")) return;
     var h = new Date().getHours();
     $("a-date").value = todayLocal(); $("a-shift").value = SHIFTS[h >= 6 && h < 14 ? 0 : h >= 14 && h < 22 ? 1 : 2];
-    $("a-cons").dataset.touched = ""; $("a-type").dataset.manual = ""; $("a-type").value = ""; $("a-hrs").value = ""; $("a-msg").innerHTML = ""; previewAdd();
+    $("a-cons").dataset.touched = ""; $("a-type").dataset.manual = ""; $("a-type").value = ""; $("a-hrs").value = ""; $("a-op").value = ""; $("a-msg").innerHTML = ""; previewAdd();
     $("a-cons-note").textContent = (MODE === "db" && hasConsumed === false)
       ? "You can type the actual litres here. Saving a changed amount needs database/05-consumed-litres.sql (ask the Data Keeper). Until then leave it unchanged."
       : "Starts at the vehicle's fixed fuel. Type the actual litres used in this shift.";
@@ -728,17 +817,17 @@
       if (!USER.can("add")) { $("a-msg").innerHTML = '<p class="msg bad">Your role cannot add readings.</p>'; return; }
       var consTxt = $("a-cons").value.trim(), cons = consTxt === "" ? null : parseFloat(consTxt);
       if (MODE === "db" && hasConsumed === false && !$("a-cons").dataset.touched) cons = null;   // 05 not run and nothing typed: the fixed litres are used
-      var hrs = parseFloat($("a-hrs").value);
-      var v = { date: $("a-date").value, shift: $("a-shift").value, no: $("a-no").value, type: $("a-type").value, cons: cons, hrs: hrs };
-      var miss = []; if (!v.date) miss.push("Date"); if (!v.no) miss.push("Vehicle"); if (cons !== null && !(cons > 0)) miss.push("Actual litres (more than 0)");
+      var hrs = parseFloat($("a-hrs").value), opn = cleanOp($("a-op").value);
+      var v = { date: $("a-date").value, shift: $("a-shift").value, no: $("a-no").value, type: $("a-type").value, cons: cons, hrs: hrs, op: opn };
+      var miss = []; if (!v.date) miss.push("Date"); if (!v.no) miss.push("Vehicle"); if (!opn || opn.length > 40) miss.push("Operator name (1 to 40 characters)"); if (cons !== null && !(cons > 0)) miss.push("Actual litres (more than 0)");
       if (!(hrs > 0 && hrs <= 24)) miss.push("Working hours (more than 0, up to 24)");
       if (miss.length) { $("a-msg").innerHTML = '<p class="msg bad">Please fill in: ' + esc(miss.join(", ")) + ".</p>"; return; }
       var btn = $("a-save"); btn.disabled = true; btn.textContent = "Saving...";
       saveReading(v, function (err) {
         btn.disabled = false; btn.textContent = "Save reading";
         if (err) { $("a-msg").innerHTML = '<p class="msg bad">The reading was NOT saved. See the red message at the top of the page.</p>'; return; }
-        $("a-msg").innerHTML = '<p class="msg">Saved: ' + esc(v.no) + ", " + esc(v.shift) + ", " + esc(fmtDate(v.date)) + (v.cons !== null ? ", " + esc(num1(v.cons)) + " L" : "") + ", " + esc(num1(v.hrs)) + " hrs" + (v.type ? ", " + esc(v.type) : ", normal") + ".</p>";
-        $("a-type").value = ""; $("a-type").dataset.manual = ""; $("a-cons").dataset.touched = ""; $("a-hrs").value = ""; previewAdd();
+        $("a-msg").innerHTML = '<p class="msg">Saved: ' + esc(v.no) + ", " + esc(v.op) + ", " + esc(v.shift) + ", " + esc(fmtDate(v.date)) + (v.cons !== null ? ", " + esc(num1(v.cons)) + " L" : "") + ", " + esc(num1(v.hrs)) + " hrs" + (v.type ? ", " + esc(v.type) : ", normal") + ".</p>";
+        $("a-type").value = ""; $("a-type").dataset.manual = ""; $("a-cons").dataset.touched = ""; $("a-hrs").value = ""; $("a-op").value = ""; previewAdd();
       });
     });
   }
@@ -793,9 +882,9 @@
   /* ================= CSV ================= */
   function downloadCsv() {
     try {
-      var head = ["Date", "Mine", "Vehicle No", "Equipment", "Shift", "Fuel (L)", "Working Hours", "Ltrs/hr", "Exception Type", "Status"];
+      var head = ["Date", "Mine", "Vehicle No", "Operator", "Equipment", "Shift", "Fuel (L)", "Working Hours", "Ltrs/hr", "Exception Type", "Status"];
       var lines = [head.join(",")];
-      detailRows().forEach(function (r) { lines.push([r.date, r.mine, r.no, r.vtype, r.shift, r.lit, r.hrs || "", r.hrs ? (r.lit / r.hrs).toFixed(1) : "", r._t, statusOf(r)].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(",")); });
+      detailRows().forEach(function (r) { lines.push([r.date, r.mine, r.no, opLabel(r), r.vtype, r.shift, r.lit, r.hrs || "", r.hrs ? (r.lit / r.hrs).toFixed(1) : "", r._t, statusOf(r)].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(",")); });
       var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" })); a.download = "fuel-exceptions-sample.csv";
       document.body.appendChild(a); a.click(); a.remove();
     } catch (e) { showError("downloading the CSV file", e); }
@@ -803,11 +892,11 @@
 
   /* ================= events ================= */
   function bind() {
-    ["f-preset", "f-from", "f-to", "f-mine", "f-vtype", "f-eq", "f-shift", "f-etype", "f-status"].forEach(function (id) {
+    ["f-preset", "f-from", "f-to", "f-mine", "f-vtype", "f-eq", "f-op", "f-shift", "f-etype", "f-status"].forEach(function (id) {
       $(id).addEventListener("change", function () { if (id === "f-from" || id === "f-to") $("f-preset").value = "custom"; readFilters(); UI.page = 1; renderAll(); });
     });
     $("f-reset").addEventListener("click", function () {
-      F = { preset: "30", from: "", to: "", mine: "", vtype: "", eq: "", shift: "", etype: "", status: "" }; UI.search = ""; $("d-search").value = ""; UI.page = 1;
+      F = { preset: "30", from: "", to: "", mine: "", vtype: "", eq: "", op: "", shift: "", etype: "", status: "" }; UI.search = ""; $("d-search").value = ""; UI.page = 1;
       setPreset(); pushFilters(); renderAll();
     });
     $("filter-toggle").addEventListener("click", function () { var o = $("sidebar").classList.toggle("open"); this.setAttribute("aria-expanded", o ? "true" : "false"); });
@@ -842,12 +931,19 @@
       setStatus(records[+e.target.getAttribute("data-id")], $("rec-status").value);
     });
     document.addEventListener("click", function (e) {
+      var ob = e.target.closest ? e.target.closest("[data-op],[data-opsort],#op-filter") : null;
+      if (ob) {
+        if (ob.hasAttribute("data-opsort")) { var k = ob.getAttribute("data-opsort"); if (OPT.sortKey === k) OPT.sortDir = OPT.sortDir === "asc" ? "desc" : "asc"; else { OPT.sortKey = k; OPT.sortDir = "desc"; } renderOperators(); }
+        else if (ob.id === "op-filter") { F.op = ob.getAttribute("data-opkey"); fillOpSelect(); UI.page = 1; closeRecord(); renderAll(); }
+        else openOperator(ob.getAttribute("data-op"));
+        e.stopPropagation(); return;
+      }
       var t = e.target.closest ? e.target.closest("[data-sort],[data-page],tr[data-rec]") : null; if (!t) return;
       if (t.hasAttribute("data-sort")) { var k = t.getAttribute("data-sort"); if (UI.sortKey === k) UI.sortDir = UI.sortDir === "asc" ? "desc" : "asc"; else { UI.sortKey = k; UI.sortDir = "desc"; } renderDetails(); }
       else if (t.hasAttribute("data-page")) { UI.page += t.getAttribute("data-page") === "next" ? 1 : -1; renderDetails(); }
       else openRecord(+t.getAttribute("data-rec"));
     });
-    document.addEventListener("change", function (e) { if (e.target.getAttribute && e.target.getAttribute("data-sortsel")) { var v = e.target.value.split("|"); UI.sortKey = v[0]; UI.sortDir = v[1]; renderDetails(); } });
+    document.addEventListener("change", function (e) { if (e.target.getAttribute && e.target.getAttribute("data-opsel")) { var vv = e.target.value.split("|"); OPT.sortKey = vv[0]; OPT.sortDir = vv[1]; renderOperators(); return; } if (e.target.getAttribute && e.target.getAttribute("data-sortsel")) { var v = e.target.value.split("|"); UI.sortKey = v[0]; UI.sortDir = v[1]; renderDetails(); } });
   }
 
   /* ================= roles (no password; guides the screen only) ================= */
@@ -878,6 +974,7 @@
     if (MODE === "db" && hasAudit === false) noteAudit();
     if (MODE === "db" && hasType === false) noteType();
     if (MODE === "db" && hasHours === false) noteHours();
+    if (MODE === "db" && hasOperator === false) noteOperator();
   }
   function useDemo(err) {
     MODE = "demo"; loadDemo();
@@ -900,7 +997,7 @@
     var timeout = new Promise(function (_, rej) { setTimeout(function () { rej(new Error("The database did not answer within 15 seconds (timed out).")); }, 15000); });
     Promise.race([fetchAll(0, []), timeout]).then(function (rows) {
       MODE = "db"; records = []; dbIds = {}; lastCreated = "";
-      if (rows.length) { hasAudit = ("entered_by" in rows[0]); hasType = ("exception_type" in rows[0]); hasConsumed = ("consumed_litres" in rows[0]); hasHours = ("working_hours" in rows[0]); }
+      if (rows.length) { hasAudit = ("entered_by" in rows[0]); hasType = ("exception_type" in rows[0]); hasConsumed = ("consumed_litres" in rows[0]); hasHours = ("working_hours" in rows[0]); hasOperator = ("operator_name" in rows[0]); }
       rows.forEach(function (row) { addFromDb(row); });
       var note = rows.length
         ? "<strong>Connected to the database</strong> · " + rows.length + " readings. New readings raise alerts live."
