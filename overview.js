@@ -426,7 +426,7 @@
     var r = records[id]; if (!r) return;
     var t = r._t || excType(r);
     $("rec-title").textContent = r.no + " – " + r.vtype + " · " + fmtDate(r.date);
-    var rows = [["Mine", r.mine], ["Shift", r.shift], ["Fixed fuel", num(r.fixed) + " L"], ["Actual consumed", r.cons ? num1(r.lit) + " Ltrs (recorded)" : "not recorded (fixed fuel is used)"],
+    var rows = [["Mine", r.mine], ["Shift", r.shift], ["Fixed fuel", num(r.fixed) + " L"], ["Actual litres", r.cons ? num1(r.lit) + " Ltrs (recorded)" : "not recorded (fixed fuel is used)"],
       ["Consumption rate", (r.lit / HOURS).toFixed(1) + " Ltrs/hr (" + HOURS + "-hour shift)"], ["Exception type", t || "None (normal reading)"], ["Fuel cost of this reading", rs(r.lit * S.price)], ["Record", MODE === "db" ? "Saved in the database" : (r.live ? "Simulated live reading" : "Sample record")]];
     var h = '<dl class="rec-grid">' + rows.map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("") + "</dl>";
     var hist = "";
@@ -505,7 +505,7 @@
 
   /* ---- new readings: real (database) or simulated (demo mode) ---- */
   function hintFor(msg) {
-    if (/consumed_litres/i.test(msg)) return " The database needs one more small update to save diesel consumed. Ask the Data Keeper to run database/05-consumed-litres.sql in the Supabase SQL Editor.";
+    if (/consumed_litres/i.test(msg)) return " The database needs one more small update to save actual litres. Ask the Data Keeper to run database/05-consumed-litres.sql in the Supabase SQL Editor.";
     if (/exception_type|null value in column/i.test(msg)) return " The database needs one more small update. Ask the Data Keeper to run database/04-fixed-readings.sql in the Supabase SQL Editor.";
     if (/relation .* does not exist|schema cache|Could not find the table/i.test(msg)) return " The table may not exist yet. Ask the Data Keeper to run database/02-fuel-readings.sql in the Supabase SQL Editor.";
     if (/permission denied|row-level security/i.test(msg)) return " The database is refusing access. Ask the Data Keeper to check that 02-fuel-readings.sql ran fully (policies and grant).";
@@ -610,7 +610,7 @@
     if (!m) { done(new Error("Unknown vehicle " + v.no)); return; }
     var type = v.type || "", status = type ? "Open" : "Closed", by = v.system ? "Demo feed" : who();
     if (MODE === "db") {
-      if (v.cons !== undefined && v.cons !== null && hasConsumed === false) { var e1 = new Error("The database has no consumed_litres column yet."); showError("saving the reading", e1, hintFor(e1.message)); done(e1); return; }
+      if (v.cons !== undefined && v.cons !== null && hasConsumed === false) { var e1 = new Error("The database cannot save actual litres yet (no consumed_litres column)."); showError("saving the reading", e1, hintFor(e1.message)); done(e1); return; }
       if (hasType === false) { var e0 = new Error("The database has no exception_type column yet."); showError("saving the reading", e0, hintFor(e0.message)); done(e0); return; }
       var payload = { reading_date: v.date, mine: m.mine, vehicle_type: m.vtype, vehicle_no: m.no, shift: v.shift, expected_litres: m.litres, exception_type: type, status: status };
       if (v.cons !== undefined && v.cons !== null) payload.consumed_litres = v.cons;
@@ -663,13 +663,15 @@
     var m = machineOf($("a-no").value), box = $("a-fixed");
     if (!m) { box.innerHTML = ""; return; }
     if (!$("a-cons").dataset.touched) $("a-cons").value = m.litres;
-    box.innerHTML = [["Type", m.vtype], ["Mine", m.mine], ["Fixed fuel", num(m.litres) + " L / shift"], ["Fixed rate", (m.litres / HOURS).toFixed(1) + " Ltrs/hr"]].map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join("");
+    var dl = function (a) { return a.map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join(""); };
+    box.innerHTML = dl([["Type", m.vtype], ["Mine", m.mine]]);
+    $("a-fuel").innerHTML = dl([["Fixed fuel", num(m.litres) + " L / shift"], ["Fixed rate", (m.litres / HOURS).toFixed(1) + " Ltrs/hr"]]);
   }
   // Suggest High / Low Consumption from the diesel typed, compared with the vehicle's fixed litres.
   // Other types (refuelling, mileage, other) stay manual. A manual choice is never overwritten.
   function suggestType() {
     var m = machineOf($("a-no").value), txt = $("a-cons").value.trim();
-    if (!m || txt === "" || $("a-cons").disabled) return null;
+    if (!m || txt === "") return null;
     var c = parseFloat(txt); if (!(c > 0)) return null;
     var dev = (c - m.litres) / m.litres * 100;
     return { type: dev > S.suggestHigh ? "High Consumption" : dev < -S.suggestLow ? "Low Consumption" : "", dev: dev, fixed: m.litres };
@@ -680,8 +682,8 @@
     var pct = (s.dev > 0 ? "+" : "") + num1(s.dev) + "% vs the fixed " + num(s.fixed) + " L";
     if (!sel.dataset.manual) {
       sel.value = s.type;
-      note.textContent = s.type ? "Suggested from the actual consumed: " + s.type + " (" + pct + "). You can change it." : "Actual consumed is within " + S.suggestHigh + "% above / " + S.suggestLow + "% below the fixed fuel (" + pct + "): no exception suggested.";
-    } else note.textContent = "You chose this type yourself. Actual consumed is " + pct + ".";
+      note.textContent = s.type ? "Suggested from the actual litres: " + s.type + " (" + pct + "). You can change it." : "Actual litres are within " + S.suggestHigh + "% above / " + S.suggestLow + "% below the fixed fuel (" + pct + "): no exception suggested.";
+    } else note.textContent = "You chose this type yourself. Actual litres are " + pct + ".";
   }
   function previewAdd() {
     showFixed();       // first: fixed values and the prefilled litres of the chosen vehicle
@@ -698,8 +700,9 @@
     var h = new Date().getHours();
     $("a-date").value = todayLocal(); $("a-shift").value = SHIFTS[h >= 6 && h < 14 ? 0 : h >= 14 && h < 22 ? 1 : 2];
     $("a-cons").dataset.touched = ""; $("a-type").dataset.manual = ""; $("a-type").value = ""; $("a-msg").innerHTML = ""; previewAdd();
-    $("a-cons").disabled = MODE === "db" && hasConsumed === false;
-    $("a-cons-note").textContent = $("a-cons").disabled ? "Actual consumed cannot be saved yet. Ask the Data Keeper to run database/05-consumed-litres.sql." : "Prefilled with the vehicle's fixed fuel. Change it if this shift used a different amount.";
+    $("a-cons-note").textContent = (MODE === "db" && hasConsumed === false)
+      ? "You can type the actual litres here. Saving a changed amount needs database/05-consumed-litres.sql (ask the Data Keeper). Until then leave it unchanged."
+      : "Starts at the vehicle's fixed fuel. Type the actual litres used in this shift.";
     $("add-note").textContent = MODE === "db" ? "Choose the vehicle, date, shift and exception type, and enter the diesel consumed (it starts at the vehicle's fixed fuel). Distance is fixed for each vehicle. It is saved in the database and every open dashboard gets the alert. Use made-up values only." : "Demo mode: the database is not connected, so this reading is kept in this browser only.";
     openDrawer("drawer-add");
   }
@@ -711,9 +714,9 @@
       ev.preventDefault(); $("error-area").innerHTML = ""; $("a-msg").innerHTML = "";
       if (!USER.can("add")) { $("a-msg").innerHTML = '<p class="msg bad">Your role cannot add readings.</p>'; return; }
       var consTxt = $("a-cons").value.trim(), cons = consTxt === "" ? null : parseFloat(consTxt);
-      if ($("a-cons").disabled) cons = null;   // column missing (05 not run): the fixed litres are used
+      if (MODE === "db" && hasConsumed === false && !$("a-cons").dataset.touched) cons = null;   // 05 not run and nothing typed: the fixed litres are used
       var v = { date: $("a-date").value, shift: $("a-shift").value, no: $("a-no").value, type: $("a-type").value, cons: cons };
-      var miss = []; if (!v.date) miss.push("Date"); if (!v.no) miss.push("Vehicle"); if (cons !== null && !(cons > 0)) miss.push("Actual consumed (more than 0)");
+      var miss = []; if (!v.date) miss.push("Date"); if (!v.no) miss.push("Vehicle"); if (cons !== null && !(cons > 0)) miss.push("Actual litres (more than 0)");
       if (miss.length) { $("a-msg").innerHTML = '<p class="msg bad">Please fill in: ' + esc(miss.join(", ")) + ".</p>"; return; }
       var btn = $("a-save"); btn.disabled = true; btn.textContent = "Saving...";
       saveReading(v, function (err) {

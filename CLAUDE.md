@@ -182,4 +182,10 @@
   its Ltrs/hr as you type; the exception-type suggestion still uses it). The old km column stays in the database,
   unused (new readings leave it at 0). No new SQL. Tested with a stand-in database only.
   Next: live test; decide if shift hours should differ by vehicle type (set hours per vehicle, needs a code change).
+- Phase 12 (Claude, on request): Add reading, "Fuel" section: the box is now called "Actual litres (Ltrs)" and is ALWAYS
+  editable (before, it was switched off when the consumed_litres column from 05-consumed-litres.sql was missing, which
+  looked like "no access"). The form now has a "Fuel" heading holding Fixed fuel, Fixed rate (Ltrs/hr) and the Actual
+  litres box. If 05 has not been run, a changed amount is refused on save with a red message naming the 05 file (never
+  lost silently); an unchanged amount saves with the fixed litres. No new SQL. Tested with a stand-in database only.
+  Next: Data Keeper runs 05 file if not yet done.
 
