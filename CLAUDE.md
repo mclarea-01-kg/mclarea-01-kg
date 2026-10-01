@@ -188,4 +188,9 @@
   litres box. If 05 has not been run, a changed amount is refused on save with a red message naming the 05 file (never
   lost silently); an unchanged amount saves with the fixed litres. No new SQL. Tested with a stand-in database only.
   Next: Data Keeper runs 05 file if not yet done.
+- Phase 13 (Claude, on request): (1) The "Average Fuel Consumption (Ltrs/hr)" KPI card and its Key Insights sentence were
+  removed, so the top row now has 3 cards (Total Diesel Exceptions, Total Diesel Consumed, Estimated Fuel Cost). The
+  Ltrs/hr chart by vehicle type and the Ltrs/hr line in the trend chart were NOT removed (not asked). (2) In Add reading >
+  Fuel, "Fixed fuel" now reads "360 L" (the "/ shift" was removed). The Shift choice for the reading itself is unchanged.
+  No database change. Tested with a stand-in database only.
 

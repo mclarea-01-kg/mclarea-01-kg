@@ -34,7 +34,7 @@
 .row > [hidden], .row > .pcard[hidden] { display: none; }
 
 /* KPI cards */
-.ov-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.ov-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .ov-kpi { display: flex; gap: 12px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; min-width: 0; }
 .ov-kpi .ico { flex: none; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #fff; background: var(--accent); }
 .ov-kpi .ico svg { width: 26px; height: 26px; }

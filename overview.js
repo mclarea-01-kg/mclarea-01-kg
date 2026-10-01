@@ -189,7 +189,6 @@
   function renderKpis() {
     var exc = view.exc, pool = view.pool;
     var cons = sum(pool, function (r) { return r.lit; }), pcons = sum(view.prev, function (r) { return r.lit; });
-    var eff = rateOf(pool), peff = rateOf(view.prev);
     function dl(d, upBad, unit) {
       if (d === null) return '<span>No previous period to compare</span>';
       var up = d > 0.05, flat = Math.abs(d) < 0.05;
@@ -199,7 +198,6 @@
     var k = [
       { ico: "red", svg: ICON.warn, t: "Total Diesel Exceptions", v: num(exc.length), d: dl(delta(exc.length, view.prevExc.length), true) },
       { ico: "", svg: ICON.pump, t: "Total Diesel Consumed", v: num(cons) + " <small>L</small>", d: dl(delta(cons, pcons), true) },
-      { ico: "dark", svg: ICON.drop, t: "Average Fuel Consumption", v: (eff ? eff.toFixed(1) : "–") + " <small>Ltrs/hr</small>", d: dl(delta(eff, peff), true) },
       { ico: "green", svg: ICON.rupee, t: "Estimated Fuel Cost", v: rs(cons * S.price), d: dl(delta(cons, pcons), true) + " <span>· at " + rs(S.price) + "/L</span>" }
     ];
     $("ov-kpis").innerHTML = k.map(function (x) {
@@ -377,8 +375,6 @@
       var flagged = sum(exc, function (r) { return r.lit; });
       if (cons) items.push("Fuel on flagged readings: " + num(flagged) + " L (" + Math.round(flagged / cons * 100) + "% of total), about " + rs(flagged * S.price) + ".");
     }
-    var eff = rateOf(view.pool), dEf = delta(eff, rateOf(view.prev));
-    if (eff) items.push("Average fuel consumption " + (dEf === null ? "is " : Math.abs(dEf) < 0.05 ? "is unchanged at " : dEf > 0 ? "rose to " : "fell to ") + eff.toFixed(1) + " Ltrs/hr" + (dEf === null || Math.abs(dEf) < 0.05 ? "." : " (" + (dEf > 0 ? "\u25B2 " : "\u25BC ") + num1(Math.abs(dEf)) + "%)."));
     var bt = typeList.map(function (t) { return [t, sum(view.pool.filter(function (r) { return r.vtype === t; }), function (r) { return r.lit; })]; }).sort(function (a, b) { return b[1] - a[1]; });
     if (cons && bt[0][1]) items.push(bt[0][0] + " are the highest fuel consumers (" + Math.round(bt[0][1] / cons * 100) + "% of total).");
     $("insights").innerHTML = items.map(function (t, i) { return '<li><span class="ic" aria-hidden="true">' + (i + 1) + "</span><span>" + esc(t) + "</span></li>"; }).join("");
@@ -665,7 +661,7 @@
     if (!$("a-cons").dataset.touched) $("a-cons").value = m.litres;
     var dl = function (a) { return a.map(function (x) { return "<div><dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd></div>"; }).join(""); };
     box.innerHTML = dl([["Type", m.vtype], ["Mine", m.mine]]);
-    $("a-fuel").innerHTML = dl([["Fixed fuel", num(m.litres) + " L / shift"], ["Fixed rate", (m.litres / HOURS).toFixed(1) + " Ltrs/hr"]]);
+    $("a-fuel").innerHTML = dl([["Fixed fuel", num(m.litres) + " L"], ["Fixed rate", (m.litres / HOURS).toFixed(1) + " Ltrs/hr"]]);
   }
   // Suggest High / Low Consumption from the diesel typed, compared with the vehicle's fixed litres.
   // Other types (refuelling, mileage, other) stay manual. A manual choice is never overwritten.
