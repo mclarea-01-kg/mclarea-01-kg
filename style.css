@@ -35,7 +35,7 @@ button, select, input { font: inherit; color: inherit; }
 .head-row { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
 .brand h1 { font-size: 20px; letter-spacing: .4px; text-transform: uppercase; }
 .brand p { margin: 4px 0 0; color: #b9c6dc; font-size: 14px; }
-.menu { display: flex; gap: 8px; }
+.menu { display: flex; flex-wrap: wrap; gap: 8px; }
 .menu a {
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px;
   color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;

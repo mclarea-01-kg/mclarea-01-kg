@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Fuel Consumption Monitoring - Home</title>
+  <title>Daily Hindrance Entry</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5/index.css">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="hindrance.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script src="auth.js"></script>
@@ -17,38 +18,133 @@
         <div class="logos">
           <span class="logo logo-wide"><img src="images/logo.jpg" alt="Coal India Limited and Mahanadi Coalfields Limited logos" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo-text',textContent:'Coal India Ltd | Mahanadi Coalfields Ltd'}))"></span>
         </div>
-      <div class="brand">
-        <h1>Fuel Consumption Monitoring</h1>
-        <p>Open Cast Coal Mine &ndash; Weekly Fuel Exception Analysis</p>
-      </div>
+        <div class="brand">
+          <h1>Daily Hindrance Entry</h1>
+          <p>Laikera &nbsp;|&nbsp; Kanika &nbsp;|&nbsp; Inpit &nbsp;|&nbsp; Sardega</p>
+        </div>
       </div>
       <nav class="menu" aria-label="Main menu">
-        <a href="index.html" aria-current="page">Home</a>
-        <a href="dashboard.html">Dashboard</a>
+        <a href="index.html" aria-current="page">Hindrance</a>
+        <a href="dashboard.html">Diesel Dashboard</a>
       </nav>
     </div>
   </header>
-  <div class="sample-bar"><div class="wrap"><strong>Illustrative / Sample Data.</strong> All machines, operators and litres shown are made up for demonstration.</div></div>
+  <div class="sample-bar"><div class="wrap"><strong>Training tool.</strong> Use made-up details only: no real names, phone numbers or employee IDs. <span id="mini"></span></div></div>
 
-  <main class="wrap">
-    <section class="hero">
-      <h2>Catch abnormal diesel use early</h2>
-      <p>Diesel used above the approved norm by dumpers, shovels and other machines is often noticed too late. This tool shows those exceptions the moment they are recorded, so the Fuel Manager and E&amp;M Manager can act sooner.</p>
-      <p><strong>In a few seconds the dashboard answers:</strong></p>
-      <ol class="qs">
-        <li>How many diesel exceptions are there, and is it getting better or worse?</li>
-        <li>How much diesel was used, and what did it cost?</li>
-        <li>Which mines and locations have the most exceptions?</li>
-        <li>Which vehicles and equipment types use the most fuel?</li>
-        <li>How much fuel does each vehicle type use per hour (Ltrs/hr)?</li>
-        <li>Which exceptions are still open, and what should we do now?</li>
-        <li>Live alerts: has any vehicle just been flagged for abnormal diesel use?</li>
-      </ol>
-      <p>The suggestions are decision support based on recorded exceptions. They are not accusations of fuel misuse.</p>
-      <a class="btn primary" href="dashboard.html">Open the Dashboard</a>
-      <p class="note">You need to sign in first, with the e-mail and password from your Data Keeper.</p>
+  <main class="wrap hx">
+    <div id="err" role="alert"></div>
+    <div id="flash" class="hx-flash" role="status" hidden></div>
+
+    <!-- ===== ENTRY ===== -->
+    <section id="v-entry" class="card hx-form" aria-labelledby="t-entry">
+      <h2 id="t-entry">DAILY HINDRANCE ENTRY</h2>
+      <p class="note" id="role-note" hidden><strong>Your role is Viewer.</strong> You can look at entries and download Excel, but not add entries.</p>
+
+      <div class="hx-row2">
+        <div class="field"><label for="f-date">&#128197; Date</label><input type="date" id="f-date" required></div>
+        <div class="field"><label>&#9201;&#65039; Entry time</label><div class="hx-static"><span id="f-entry-time">--:--</span> <small>captured automatically</small></div></div>
+      </div>
+
+      <div class="field"><label for="f-loc">&#128205; Location</label><select id="f-loc" required></select></div>
+      <div id="loc-banner" class="hx-locbar" aria-live="polite"></div>
+
+      <div class="field"><label for="f-detail">&#128221; Hindrance detail</label>
+        <textarea id="f-detail" rows="4" maxlength="1000" placeholder="Type or speak the hindrance. Example: Road blocked due to heavy rain from 14:00 to 15:30."></textarea></div>
+      <input type="hidden" id="f-src" value="typed">
+
+      <button type="button" class="hx-mic" id="btn-mic"><span class="mic-ico" aria-hidden="true">&#127897;&#65039;</span><span id="mic-label">TAP TO SPEAK</span></button>
+      <div class="hx-row2 hx-lang"><div class="field"><label for="f-lang">Speaking language</label>
+        <select id="f-lang"><option value="en-IN">English (India)</option><option value="hi-IN">Hindi</option><option value="en-US">English (US)</option></select></div></div>
+      <p class="note" id="voice-msg" aria-live="polite"></p>
+      <div id="detected" class="hx-detected" hidden></div>
+
+      <div class="hx-row2">
+        <div class="field"><label for="f-start">&#9201;&#65039; Start time</label><input type="time" id="f-start"></div>
+        <div class="field"><label for="f-end">&#9201;&#65039; End time</label><input type="time" id="f-end"></div>
+      </div>
+      <label class="check" id="next-wrap" hidden><input type="checkbox" id="f-next"> Ends next day (after midnight)</label>
+      <p class="hx-dur-line" id="f-dur">Duration: -</p>
+
+      <div class="field"><label for="f-cat">Category</label><select id="f-cat"></select></div>
+      <div class="hx-row2">
+        <div class="field"><label for="f-equip">Equipment no. (optional)</label><input type="text" id="f-equip" maxlength="40" autocomplete="off" placeholder="e.g. SM-136"></div>
+        <div class="field"><label for="f-cause">Reason / cause (optional)</label><input type="text" id="f-cause" maxlength="200" autocomplete="off" placeholder="e.g. Hydraulic failure"></div>
+      </div>
+
+      <button type="button" class="btn primary hx-save" id="btn-save">SAVE ENTRY</button>
+      <button type="button" class="btn hx-clear" id="btn-clear">Clear form</button>
+      <p class="note">Overlapping times at the same location are never counted twice in the totals. Each entry stays saved as typed.</p>
+      <p class="note" id="load-state"></p>
+    </section>
+
+    <!-- ===== TODAY ===== -->
+    <section id="v-today" hidden aria-labelledby="s-title">
+      <div class="card">
+        <h2 id="s-title">Today's Hindrance</h2>
+        <div class="hx-daybar">
+          <button class="btn" type="button" id="s-prev" aria-label="Previous day">&larr;</button>
+          <input type="date" id="s-date" aria-label="Choose date">
+          <button class="btn" type="button" id="s-next" aria-label="Next day">&rarr;</button>
+          <button class="btn" type="button" id="s-now">Today</button>
+          <button class="btn" type="button" id="btn-refresh">Refresh</button>
+        </div>
+        <div class="hx-cards" id="s-cards"></div>
+        <div class="hx-total" id="s-total"></div>
+        <p class="note">Net hours: overlapping periods at one location are counted once. Locations are added together for the total.</p>
+      </div>
+      <h3 class="section-label">Category-wise breakdown (net hours)</h3>
+      <div class="card" id="s-cats"></div>
+      <h3 class="section-label">Entries of the day</h3>
+      <div id="s-list" class="hx-list"></div>
+    </section>
+
+    <!-- ===== HISTORY ===== -->
+    <section id="v-history" hidden aria-labelledby="t-hist">
+      <div class="card">
+        <h2 id="t-hist">Entry History</h2>
+        <div class="hx-chips">
+          <button class="btn" type="button" data-range="today">Today</button>
+          <button class="btn" type="button" data-range="7">Last 7 days</button>
+          <button class="btn" type="button" data-range="month">This month</button>
+          <button class="btn" type="button" data-range="all">All</button>
+        </div>
+        <div class="filter-grid">
+          <div class="field"><label for="h-from">From date</label><input type="date" id="h-from"></div>
+          <div class="field"><label for="h-to">To date</label><input type="date" id="h-to"></div>
+          <div class="field"><label for="h-loc">Location</label><select id="h-loc"></select></div>
+          <div class="field"><label for="h-cat">Category</label><select id="h-cat"></select></div>
+          <div class="field"><label for="h-eq">Equipment</label><input type="text" id="h-eq" autocomplete="off" placeholder="e.g. SM-136"></div>
+          <div class="field"><label for="h-by">Entered by</label><select id="h-by"></select></div>
+          <div class="field"><label for="h-q">Search words</label><input type="search" id="h-q" autocomplete="off" placeholder="rain, hydraulic..."></div>
+          <div class="field"><label>&nbsp;</label><button class="btn block" type="button" id="h-reset">Reset filters</button></div>
+        </div>
+        <p class="hx-sum" id="h-summary"></p>
+      </div>
+      <div class="card hx-tbl-card">
+        <div class="tbl-wrap">
+          <table class="tbl hx-tbl">
+            <thead><tr><th>Date</th><th>Location</th><th>Category</th><th>Hindrance Detail</th><th>Start Time</th><th>End Time</th><th class="num">Duration</th><th>Entered By</th></tr></thead>
+            <tbody id="h-body"></tbody>
+          </table>
+        </div>
+        <div class="empty-msg" id="h-empty" hidden>No entries match these filters.</div>
+        <button class="btn block" type="button" id="h-more" hidden>Show more</button>
+      </div>
+      <h3 class="section-label">Date-wise totals per location (filtered)</h3>
+      <div class="card"><div class="tbl-wrap"><table class="tbl hx-tbl">
+        <thead><tr><th>Date</th><th>Location</th><th class="num">Entries</th><th class="num">Sum of entries (hrs)</th><th class="num">Net hours</th></tr></thead>
+        <tbody id="h-days"></tbody></table></div>
+        <p class="note">Net hours = overlaps merged, so it can be lower than the sum of entries.</p></div>
     </section>
   </main>
-  <div class="wrap site-footer">Illustrative / Sample Data &ndash; made up for training. Not real MCL figures.</div>
+  <div class="wrap site-footer">Training tool &ndash; made-up data only.</div>
+
+  <nav class="hx-nav" aria-label="Quick buttons">
+    <button type="button" data-view="entry" aria-current="page"><span aria-hidden="true">&#128221;</span>Entry</button>
+    <button type="button" data-view="today" aria-current="false"><span aria-hidden="true">&#128197;</span>Today's Entries</button>
+    <button type="button" data-view="history" aria-current="false"><span aria-hidden="true">&#128220;</span>History</button>
+    <button type="button" id="btn-export"><span aria-hidden="true">&#128202;</span>Export Excel</button>
+  </nav>
+  <script src="hindrance.js"></script>
 </body>
 </html>

@@ -9,8 +9,8 @@
   time. The Progress Log at the end of this file is our handover logbook.
 
 ## What we are building
-- A tool with at most 3 pages: index.html (entry page), dashboard.html
-  (dashboard) and at most one more page.
+- A tool with at most 3 pages: index.html (Daily Hindrance Entry), dashboard.html
+  (diesel dashboard) and login.html.
 - Every record has location, urgency (Low / Medium / High) and status
   (Open / In progress / Resolved), plus the columns in "Our tool" below.
 - All data is MADE UP. Never add real names, phone numbers, employee IDs or
@@ -31,7 +31,7 @@
 4. The Project URL and the publishable key live only in config.js. Never use
    or ask for a secret key, a service_role key or the database password.
 5. For charts, load Chart.js from the jsDelivr CDN.
-6. LOGIN (changed on the team's request): dashboard.html needs an e-mail + password login (Supabase Auth, page login.html). index.html and login.html are open. NO self sign-up: the Data Keeper creates the accounts and gives each a role (database/07-set-user-roles.sql). Never use a secret key or service_role key for this; the publishable key is enough.
+6. LOGIN (changed on the team's request): index.html and dashboard.html need an e-mail + password login (Supabase Auth, page login.html). login.html is open. NO self sign-up: the Data Keeper creates the accounts and gives each a role (database/07-set-user-roles.sql). Never use a secret key or service_role key for this; the publishable key is enough.
 7. You may not be able to reach our database. Do NOT try to test the database
    connection. Write the code; we test it on the live website.
 8. If anything fails, show a friendly message on the page that also includes
@@ -76,7 +76,8 @@
 - Problem: Diesel used above norm by dumpers, shovels and other HEMM is noticed too late (excess fuel, possible misuse, machine faults, poor operator practice).
 - Who records / who decides: Fuel issue / shift staff record; Fuel Manager and E&M Manager decide; Project Officer reviews.
 - Table name and columns: fuel_readings (database/02, 03, 04 files): id, created_at, reading_date, mine, vehicle_type, vehicle_no, shift, expected_litres (= the vehicle's FIXED litres per shift), operator_name (optional in the database, REQUIRED in the Add reading form; database/09-operator-name.sql), working_hours (optional; typed in the Add reading form, required there; database/08-working-hours.sql), consumed_litres (optional: diesel typed in the Add reading form; if empty the fixed litres are used), exception_type ('' = normal, or High Consumption / Low Consumption / Refueling Irregularity / Mileage Mismatch / Other), status, entered_by, updated_by, updated_at. OLD columns siding, actual_litres, exception_flag still exist but are optional and unused. The older table diesel_exceptions (01-setup.sql) is NOT used any more.
-- Pages (3, the maximum): index.html = home (open); login.html = sign in (open); dashboard.html = dashboard (login needed). Code: auth.js = login and roles (all pages); overview.js = dashboard; fixed-values.js = fixed litres per vehicle; overview-data.js = built-in demo data; styles in style.css + overview.css. (user.js no longer exists.)
+- SECOND TOOL (Phase 17): Daily Hindrance Entry on index.html (hindrance.js, hindrance.css, database/11-hindrance.sql, table hindrance_entries; locations Laikera, Kanika, Inpit, Sardega). Same login and roles as the diesel tool. Excel export uses SheetJS (xlsx) loaded from the jsDelivr CDN only when the button is tapped.
+- Pages (3, the maximum): index.html = Daily Hindrance Entry (login needed); login.html = sign in (open); dashboard.html = diesel dashboard (login needed). Code: auth.js = login and roles (all pages); overview.js = dashboard; fixed-values.js = fixed litres per vehicle; overview-data.js = built-in demo data; styles in style.css + overview.css. (user.js no longer exists.)
 
 ## Progress Log (newest entry at the bottom)
 - Phase 0 (starter): placeholder index.html, config.js without settings and
@@ -229,4 +230,5 @@
   operator; Recommended Actions has an "Operators" group. Older readings have no operator and are left out (the page
   says so). If 09 has not been run, new readings cannot be saved and a yellow note says so. Demo mode uses made-up
   operator IDs. Tested with a stand-in database only. Next: Data Keeper runs 09 (and optionally 10).
-
+- Phase 17 (Claude, on request): NEW TOOL "Daily Hindrance Entry" for 4 locations. To keep the 3-page limit, it REPLACES the old home page: index.html is now the hindrance tool (login needed); the diesel dashboard stays on dashboard.html; the menu on all pages shows Hindrance / Diesel Dashboard. The old intro text of the home page is in git history. Built: mobile-first form (date, location, detail, big TAP TO SPEAK voice button using the phone browser's speech typing, English India / Hindi / English US; start and end time, "ends next day" tick, category, equipment, cause); words typed or spoken are read to fill start/end time, equipment, cause, location (only when exactly one is named) and a suggested category - the person checks and edits before saving, and fields they typed themselves are never overwritten. Checks before saving (valid date, not in the future, location, detail, both times or none, end after start unless overnight, double-tap and same-entry warning). NET hours merge overlapping periods per location and date (tested: 10-12 + 11-13 = 3 h; 9-11 + 10:30-12 + 11:45-13 = 4 h); categories split the net exactly (a minute counts for the entry that started first); every single entry is kept unchanged. Screens: Entry, Today's Entries (4 location cards, total, entry count, category breakdown, day picker), History (filters: date range, location, category, equipment, entered by, words; date-wise totals per location). Export Excel: sheets All Entries, Laikera, Kanika, Inpit, Sardega, Daily Summary (with net totals per day). NEW database/11-hindrance.sql (one new table, same role rules as 06; checked on a throwaway local Postgres with a stand-in for auth.jwt(), NOT on our Supabase). Screens tested with a stand-in database in a headless browser; the Excel file was checked with a locally loaded copy of the library. Voice typing could NOT be tested (needs a real microphone); it works in Chrome on Android, not in every browser (a message says so). Known: overnight entries are counted on their entry date; Viewer can read and export only; no edit screen yet (the database allows Fuel/E&M Manager updates); contractor column is empty for later.
+  Next: Data Keeper runs database/11-hindrance.sql; merge to main; test voice on a real phone.

@@ -1,0 +1,88 @@
+/* hindrance.css - Daily Hindrance Entry page (index.html). Mobile first; same header as every page. */
+body { padding-bottom: 84px; }
+.hx { max-width: 900px; }
+.hx .field { margin-top: 12px; }
+.hx .field input, .hx .field select, .hx textarea {
+  width: 100%; min-height: 52px; font-size: 17px; padding: 10px 12px; border: 2px solid var(--line); border-radius: 10px; background: #fff;
+}
+.hx textarea { min-height: 120px; resize: vertical; line-height: 1.4; }
+.hx .field label { font-size: 13px; }
+.hx-form h2 { font-size: 18px; letter-spacing: .6px; }
+.hx-row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+@media (max-width: 480px) { .hx-row2.stack-sm, .hx-lang { grid-template-columns: minmax(0, 1fr); } }
+.hx-static { min-height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 10px; background: #eef2f8; font-size: 18px; font-weight: 700; }
+.hx-static small { font-size: 11.5px; font-weight: 500; color: var(--muted); }
+.hx-locbar { margin-top: 8px; padding: 10px 14px; border-radius: 10px; font-weight: 800; letter-spacing: 1px; color: #fff; text-align: center; font-size: 17px; }
+
+/* location colours (also used as a thin left stripe on records) */
+.loc-laikera { --lc: #1a63d6; } .loc-kanika { --lc: #1e8a4c; } .loc-inpit { --lc: #b9770e; } .loc-sardega { --lc: #7b3fb5; }
+.hx-locbar[class*="loc-"] { background: var(--lc); }
+
+.hx-mic { width: 100%; min-height: 96px; margin-top: 14px; border: 0; border-radius: 16px; background: #c8372d; color: #fff; font-size: 20px; font-weight: 800; letter-spacing: .6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; box-shadow: 0 4px 0 #8f241d; }
+.hx-mic .mic-ico { font-size: 38px; line-height: 1; }
+.hx-mic:active { transform: translateY(2px); box-shadow: 0 2px 0 #8f241d; }
+.hx-mic.on { background: #1e8a4c; box-shadow: 0 4px 0 #14643a; animation: hxpulse 1.2s infinite; }
+.hx-mic:disabled { opacity: .5; }
+@keyframes hxpulse { 50% { filter: brightness(1.2); } }
+@media (prefers-reduced-motion: reduce) { .hx-mic.on { animation: none; } }
+.hx-detected { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--info-bg); font-size: 14px; }
+.hx-dur-line { margin: 8px 0 0; font-weight: 700; color: var(--info); }
+
+.hx-save { width: 100%; min-height: 60px; margin-top: 16px; font-size: 20px; font-weight: 800; letter-spacing: .5px; }
+.hx-clear { width: 100%; min-height: 48px; margin-top: 10px; }
+.hx-flash { position: sticky; top: 6px; z-index: 20; margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; font-size: 15px; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.hx-flash[hidden] { display: none; }
+.hx-flash.ok { background: #e4f3e6; border: 2px solid #2e8b3d; color: #14461d; }
+.hx-flash.bad { background: #fde6e3; border: 2px solid #c8372d; color: #5c1410; }
+
+/* today */
+.hx-daybar { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.hx-daybar .btn { min-height: 48px; }
+.hx-daybar input { flex: 1 1 150px; min-height: 48px; font-size: 16px; padding: 6px 10px; border: 2px solid var(--line); border-radius: 10px; }
+.hx-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 700px) { .hx-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.hx-loc-card { border: 1px solid var(--line); border-top: 6px solid var(--lc); border-radius: 10px; padding: 10px 12px; background: #fff; }
+.hx-loc-name { font-weight: 800; letter-spacing: .5px; text-transform: uppercase; font-size: 13px; color: var(--lc); }
+.hx-loc-hrs { font-size: 30px; font-weight: 800; line-height: 1.15; }
+.hx-loc-hrs small { font-size: 14px; color: var(--muted); font-weight: 600; }
+.hx-loc-sub { font-size: 13px; color: var(--muted); }
+.hx-loc-sub .ov { color: #7a4a00; }
+.hx-total { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; background: var(--head); color: #fff; border-radius: 10px; padding: 14px 16px; }
+.hx-total .k { font-size: 12px; letter-spacing: 1px; color: #9cc4ff; font-weight: 700; }
+.hx-total .v { font-size: 30px; font-weight: 800; }
+.hx-total .sub { font-size: 13px; color: #b9c6dc; }
+.hx-list { display: grid; gap: 10px; }
+.hx-entry { background: #fff; border: 1px solid var(--line); border-left: 8px solid var(--lc); border-radius: 10px; padding: 10px 12px; }
+.hx-entry p { margin: 6px 0; font-size: 16px; overflow-wrap: anywhere; }
+.hx-entry-top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.hx-dur { margin-left: auto; font-weight: 800; }
+.hx-tag { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--lc); color: #fff; font-weight: 700; font-size: 12.5px; }
+.hx-meta { font-size: 12.5px; color: var(--muted); }
+.hx-pill { display: inline-block; margin: 4px 6px 0 0; padding: 2px 10px; border-radius: 999px; border: 2px solid var(--lc); font-weight: 700; font-size: 13px; }
+.hx-sum { margin: 12px 0 0; font-size: 15px; }
+.hx-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+.hx-chips .btn { min-height: 44px; }
+.hx-tbl-card { margin-top: 14px; }
+.hx-tbl tr[class*="loc-"] td:first-child { border-left: 6px solid var(--lc); }
+.hx-tbl td .hx-tag { background: var(--lc); }
+#h-days .hx-tag { background: var(--lc); }
+
+/* fixed bottom bar: one-tap Today's Entries / Export Excel */
+.hx-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--head); border-top: 3px solid var(--accent); padding-bottom: env(safe-area-inset-bottom); }
+.hx-nav button { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 64px; padding: 4px 2px; color: #cfd9ea; font-size: 12.5px; font-weight: 700; text-align: center; line-height: 1.15; }
+.hx-nav button span { font-size: 22px; }
+.hx-nav button[aria-current="page"] { background: var(--accent); color: #fff; }
+.hx-nav button:disabled { opacity: .5; }
+.hx-nav button:focus-visible { outline: 3px solid #fff; outline-offset: -4px; }
+
+/* history table becomes cards on a phone: no sideways scrolling */
+@media (max-width: 760px) {
+  .hx-tbl, .hx-tbl tbody, .hx-tbl tr, .hx-tbl td { display: block; width: 100%; }
+  .hx-tbl thead { display: none; }
+  .hx-tbl tr { border: 1px solid var(--line); border-left: 8px solid var(--lc); border-radius: 10px; margin-bottom: 10px; padding: 6px 10px; background: #fff; }
+  .hx-tbl td { border: 0 !important; padding: 3px 0; display: flex; gap: 10px; justify-content: space-between; text-align: right; }
+  .hx-tbl td::before { content: attr(data-l); font-size: 11.5px; font-weight: 700; text-transform: uppercase; color: var(--muted); text-align: left; flex: 0 0 38%; }
+  .hx-tbl td[data-l="Hindrance Detail"] { flex-direction: column; text-align: left; }
+  .hx-tbl td[data-l="Hindrance Detail"]::before { flex: none; }
+  .hx-tbl tr[class*="loc-"] td:first-child { border-left: 0; }
+}

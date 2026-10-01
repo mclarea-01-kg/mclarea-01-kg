@@ -2,7 +2,7 @@
    - Creates the one database client (window.mclDb) and checks who is signed in.
    - The ROLE comes from the account's app_metadata.role (set by the Data Keeper, people cannot edit it).
    - The database itself enforces the roles (database/06-login-security.sql); the buttons only mirror that.
-   - dashboard.html needs a login; index.html and login.html are open. */
+   - index.html (hindrance) and dashboard.html (diesel) need a login; login.html is open. */
 (function () {
   "use strict";
   var ROLES = {
@@ -12,7 +12,7 @@
     "Viewer": { desc: "See the dashboard and acknowledge alerts. Cannot change data.", can: {} }
   };
   var page = (location.pathname.split("/").pop() || "index.html");
-  var isLogin = page === "login.html", needsLogin = page === "dashboard.html";
+  var isLogin = page === "login.html", needsLogin = page === "dashboard.html" || page === "index.html";
   var listeners = [], user = { name: "", role: "", email: "", ok: false }, db = null, chip = null, modal = null, resolveReady, lastFocus = null;
   var ready = new Promise(function (r) { resolveReady = r; });
   window.MCLAuthReady = ready;
@@ -118,7 +118,7 @@
   }
   function nextPage() {
     var n = new URLSearchParams(location.search).get("next");
-    return (n === "dashboard.html" || n === "index.html") ? n : "dashboard.html";
+    return (n === "dashboard.html" || n === "index.html") ? n : "index.html";
   }
   window.MCLAuth = { nextPage: nextPage, db: function () { return db; } };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
